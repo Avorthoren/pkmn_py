@@ -44,7 +44,7 @@ class Representative(Species):
 			raise NotImplementedError
 
 		ranges = {
-			type_: self._stats[type_].getIVRange()
+			type_: self._stats[type_].get_iv_range()
 			for type_ in StatType
 		}
 

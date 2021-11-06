@@ -1,4 +1,3 @@
-import math
 from enum import Enum
 
 
@@ -21,14 +20,23 @@ class StatType(Enum):
 
 
 class Stat:
-	_MIN_VALUE = 0
-	_MAX_VALUE = 31
+	_IV_MIN_VALUE = 0
+	_IV_MAX_VALUE = 31
 
 	@classmethod
-	def clamp(cls, val):
-		return clamp(val, cls._MIN_VALUE, cls._MAX_VALUE)
+	def _clamp_iv(cls, val: int) -> int:
+		return clamp(val, cls._IV_MIN_VALUE, cls._IV_MAX_VALUE)
 
-	def __init__(self, type_, base, lvl=None, val=None, iv=None, ev=0, mult=1.0):
+	def __init__(
+		self,
+		type_: StatType,
+		base: int,
+		lvl: int = None,
+		val: int = None,
+		iv: int = None,
+		ev: int = 0,
+		mult: float = 1.0  # nature multiplier
+	):
 		self._type = type_
 		self._base = base
 		self._lvl = lvl
@@ -37,7 +45,8 @@ class Stat:
 		self._ev = ev
 		self._mult = mult
 
-	def getVal(self, lvl=None):
+	def get_val(self, lvl: int = None) -> int:
+		"""Get stat value."""
 		if lvl is None:
 			if self._lvl is None:
 				raise ValueError("Lvl must be specified")
@@ -50,40 +59,39 @@ class Stat:
 		if self._iv is None:
 			raise ValueError("IV must be specified")
 
-		if self._type == StatType.HP:
+		if self._type is StatType.HP:
 			return (2*self._base + self._iv + self._ev//4) * lvl // 100 + lvl + 10
 		else:
-			return math.floor(((2 * self._base + self._iv + self._ev // 4) * lvl // 100 + 5) * self._mult)
+			return int(((2 * self._base + self._iv + self._ev // 4) * lvl // 100 + 5) * self._mult)
 
 	@classmethod
-	def min_(cls, left, mult):
+	def min_(cls, left: int, mult: float) -> int:
+		"""Get min int x such that left >= x * mult."""
 		res = int(left / mult)
-		if int(res * mult) == left:
-			return res
-		elif int((res + 1) * mult) == left:
-			return res + 1
-		else:
-			raise Exception("min_() implementation error")
+
+		return res if left >= int(res * mult) else res + 1
 
 	@classmethod
-	def max_(cls, left, mult):
+	def max_(cls, left: int, mult: float) -> int:
+		"""Get max int x such that left <= x * mult."""
 		res = int((left + 1) / mult)
-		if int(res * mult) == left:
-			return res
-		elif int((res - 1) * mult) == left:
-			return res - 1
-		else:
-			raise Exception("max_() implementation error")
+
+		return res if left <= int(res * mult) else res - 1
 
 	@classmethod
 	def range_(cls, left, mult):
-		return cls.min_(left, mult), cls.max_(left, mult)
+		min_ = cls.min_(left, mult)
+		max_ = cls.max_(left, mult)
+		if min_ > max_:
+			raise RuntimeError(f"Impossible range: ({min_}, {max_})")
+
+		return min_, max_
 
 	@staticmethod
-	def rangeMerge(r1, r2):
+	def range_merge(r1, r2):
 		return min(r1[0], r2[0]), max(r1[1], r2[1])
 
-	def getIVRange(self):
+	def get_iv_range(self):
 		if self._lvl is None:
 			raise ValueError("Lvl must be specified")
 		if self._val is None:
@@ -96,15 +104,27 @@ class Stat:
 			range_ = self.range_(self._val, self._mult)
 			range_ = range_[0] - 5, range_[1] - 5
 
-		range_ = self.rangeMerge(
+		range_ = self.range_merge(
 			self.range_(range_[0], self._lvl/100),
 			self.range_(range_[1], self._lvl/100)
 		)
 
-		baseAndEV = 2*self._base + self._ev//4
-		range_ = range_[0] - baseAndEV, range_[1] - baseAndEV
+		base_and_ev = 2*self._base + self._ev//4
+		range_ = range_[0] - base_and_ev, range_[1] - base_and_ev
 
-		if range_[0] > self._MAX_VALUE or range_[1] < self._MIN_VALUE:
-			raise ValueError(f"Calculated {self._type.name} IVs are impossible: [{range_[0]}, {range_[1]}]")
+		if range_[0] > self._IV_MAX_VALUE or range_[1] < self._IV_MIN_VALUE:
+			raise ValueError(f"Calculated {self._type.name} IVs are impossible: {range_}")
 
-		return self.clamp(range_[0]), self.clamp(range_[1])
+		return self._clamp_iv(range_[0]), self._clamp_iv(range_[1])
+
+
+def main():
+	left = 4356465
+	mult = 5
+	min_, max_ = Stat.range_(left, mult)
+	print(min_, max_)
+	print(f"{int(min_ * mult)} .. {left} .. {int(max_ * mult)}")
+
+
+if __name__ == "__main__":
+	main()
