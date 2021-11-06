@@ -23,21 +23,25 @@ class Nature(Enum):
 	BRAVE   = NatureData(StatType.ATK,   StatType.SPATK)
 	ADAMANT = NatureData(StatType.ATK,   StatType.SPDEF)
 	NAUGHTY = NatureData(StatType.ATK,   StatType.SPEED)
+
 	BOLD    = NatureData(StatType.DEF,   StatType.ATK)
 	DOCILE  = NatureData(StatType.DEF,   StatType.DEF)
 	RELAXED = NatureData(StatType.DEF,   StatType.SPATK)
 	IMPISH  = NatureData(StatType.DEF,   StatType.SPDEF)
 	LAX     = NatureData(StatType.DEF,   StatType.SPEED)
+
 	TIMID   = NatureData(StatType.SPATK, StatType.ATK)
 	HASTY   = NatureData(StatType.SPATK, StatType.DEF)
 	SERIOUS = NatureData(StatType.SPATK, StatType.SPATK)
 	JOLLY   = NatureData(StatType.SPATK, StatType.SPDEF)
 	NAIVE   = NatureData(StatType.SPATK, StatType.SPEED)
+
 	MODEST  = NatureData(StatType.SPDEF, StatType.ATK)
 	MILD    = NatureData(StatType.SPDEF, StatType.DEF)
 	QUIET   = NatureData(StatType.SPDEF, StatType.SPATK)
 	BASHFUL = NatureData(StatType.SPDEF, StatType.SPDEF)
 	RASH    = NatureData(StatType.SPDEF, StatType.SPEED)
+
 	CALM    = NatureData(StatType.SPEED, StatType.ATK)
 	GENTLE  = NatureData(StatType.SPEED, StatType.DEF)
 	SASSY   = NatureData(StatType.SPEED, StatType.SPATK)
