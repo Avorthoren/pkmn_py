@@ -4,13 +4,13 @@ from pkmn_stat import StatType
 
 
 class CharacteristicData:
-	def __init__(self, highestStat, rem):
-		self._highestStat = highestStat
+	def __init__(self, highest_stat, rem):
+		self._highest_stat = highest_stat
 		self._rem = rem
 
 	@property
-	def highestStat(self):
-		return self._highestStat
+	def highest_stat(self):
+		return self._highest_stat
 
 	@property
 	def rem(self):

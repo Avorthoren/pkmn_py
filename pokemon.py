@@ -54,7 +54,7 @@ class Representative(Species):
 		}
 
 		if self._characteristic is not None:
-			highestStat, rem = self._characteristic.value._highestStat, self._characteristic.value._rem
+			highestStat, rem = self._characteristic.value._highest_stat, self._characteristic.value._rem
 			sets[highestStat] = {val for val in sets[highestStat] if val % 5 == rem}
 			if not sets[highestStat]:
 				raise ValueError(f"This {self._name} has impossible input values")
