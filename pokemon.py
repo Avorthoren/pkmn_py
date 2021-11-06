@@ -78,4 +78,21 @@ class Pokemon(Enum):
 		StatType.SPEED: 80
 	})
 
+	RAYQUAZA = Species("Rayquaza", catchRate=45, baseStats={
+		StatType.HP: 105,
+		StatType.ATK: 150,
+		StatType.DEF: 90,
+		StatType.SPATK: 150,
+		StatType.SPDEF: 90,
+		StatType.SPEED: 95
+	})
+
+	MEGA_RAYQUAZA = Species("Mega Rayquaza", catchRate=45, baseStats={
+		StatType.HP: 105,
+		StatType.ATK: 180,
+		StatType.DEF: 100,
+		StatType.SPATK: 180,
+		StatType.SPDEF: 100,
+		StatType.SPEED: 115
+	})
 
