@@ -1,54 +1,99 @@
+from __future__ import annotations
 from enum import Enum
-from typing import Dict
+from typing import Dict, Union
 
-from pkmn_stat import Stat, StatType
+import voluptuous as vlps
 
-
-LVL_RANGE = 1, 100
+from catch import CATCH_RATE_RANGE
+from characteristic import Characteristic, CharacteristicData
+from nature import Nature
+from pkmn_stat import Stat, StatType, BaseStats, StatData, StatsData, LVL_RANGE
+from utils import pretty_print
 
 
 class Species:
 	def __init__(
 		self,
-		name: str,
-		catch_rate: int,
-		base_stats: Dict[StatType, int]
+		base_stats: Union[BaseStats, Dict[StatType, int]],
+		name: str = None,
+		catch_rate: int = None
 	):
-		self._name = name
-		self._catchRate = catch_rate
-		self._stats = {
-			type_: Stat(type_, base=base_stats[type_])
-			for type_ in StatType
-		}
+		if not isinstance(base_stats, BaseStats):
+			# Auto validation.
+			base_stats = BaseStats(base_stats)
+		self._base_stats = base_stats
+		self._stats = None  # placeholder for child-class
+
+		self._name = vlps.Schema(str)(name)
+		self._catchRate = vlps.Schema(vlps.All(int, vlps.Range(*CATCH_RATE_RANGE)))(catch_rate)
 
 
 class Representative(Species):
-	def __init__(self, spec, nature=None, characteristic=None, lvl=None, stats=None):
+	def __init__(
+		self,
+		spec: Union[Species, Pokemon],
+		nature: Nature = None,
+		characteristic: Characteristic = None,
+		lvl: int = None,
+		# Second variant for `stats` argument is:
+		# {
+		#     StatType.HP: 100,  # `value` argument
+		#     StatType.ATK: {"value": 70, "ev": 252},
+		#     ...
+		# }
+		stats: Union[StatsData, Dict[StatType, Union[int, Dict[str, int]]]] = None
+	):
 		if nature is None:
 			raise NotImplementedError
 
-		super().__init__(spec.value._name, spec.value._catchRate, {
-			type_: spec.value._stats[type_]._base
-			for type_ in StatType
-		})
+		spec = vlps.Schema(vlps.Any(Species, Pokemon))(spec)
+		if isinstance(spec, Pokemon):
+			spec = spec.value
+		spec: Species
+		super().__init__(spec._base_stats, spec._name, spec._catchRate)
 
-		self._nature = nature
-		self._characteristic = characteristic
-		self._lvl = lvl
+		self._nature = vlps.Schema(Nature)(nature)
+		self._characteristic = vlps.Schema(Characteristic)(characteristic)
+		self._lvl = vlps.Schema(vlps.All(int, vlps.Range(*LVL_RANGE)))(lvl)
 
-		for type_ in StatType:
-			self._stats[type_]._lvl = lvl
-			if stats is not None:
-				self._stats[type_]._val = stats[type_].get("value")
-				self._stats[type_]._iv = stats[type_].get("iv")
-				self._stats[type_]._ev = stats[type_].get("ev", 0)
-				if nature.value.increased != nature.value.decreased:
-					if type_ == nature.value.increased:
-						self._stats[type_]._mult = Stat.INCREASED_MULT
-					elif type_ == nature.value.decreased:
-						self._stats[type_]._mult = Stat.DECREASED_MULT
+		if stats is None:
+			stats = StatsData({
+				stat_type: StatData()
+				for stat_type in StatType
+			})
+		elif not isinstance(stats, StatsData):
+			# Auto validation.
+			stats = StatsData({
+				stat_type: StatData(stat_data) if isinstance(stat_data, int) else StatData(**stat_data)
+				for stat_type, stat_data in stats.items()
+			})
+		stats: StatsData
 
-	def getIVSets(self):
+		self._stats = {}
+		for stat_type in StatType:
+			base_stat = spec._base_stats[stat_type]
+			stat = stats[stat_type]
+
+			if stat_type == StatType.HP:
+				nature_mult = None
+			elif stat_type == nature.increased and not nature.is_simple():
+				nature_mult = Stat.INCREASED_MULT
+			elif stat_type == nature.decreased and not nature.is_simple():
+				nature_mult = Stat.DECREASED_MULT
+			else:
+				nature_mult = Stat.DEFAULT_MULT
+
+			self._stats[stat_type] = Stat(
+				stat_type,
+				base_stat,
+				lvl,
+				stat.value,
+				stat.iv,
+				stat.ev,
+				nature_mult
+			)
+
+	def get_iv_sets(self):
 		if self._lvl is None:
 			raise NotImplementedError
 
@@ -63,14 +108,15 @@ class Representative(Species):
 		}
 
 		if self._characteristic is not None:
-			highestStat, rem = self._characteristic.value._highest_stat, self._characteristic.value._rem
-			sets[highestStat] = {val for val in sets[highestStat] if val % 5 == rem}
-			if not sets[highestStat]:
+			highest_stat, rem = self._characteristic.highest_stat, self._characteristic.rem
+			sets[highest_stat] = {val for val in sets[highest_stat] if val % CharacteristicData.MOD == rem}
+			if not sets[highest_stat]:
 				raise ValueError(f"This {self._name} has impossible input values")
 
+			highest_stat_max_val = max(sets[highest_stat])
 			for type_, set_ in sets.items():
-				if type_ != highestStat:
-					sets[type_] = {val for val in sets[type_] if val <= max(sets[highestStat])}
+				if type_ != highest_stat:
+					sets[type_] = {val for val in sets[type_] if val <= highest_stat_max_val}
 					if not sets[type_]:
 						raise ValueError(f"This {self._name} has impossible input values")
 
@@ -78,7 +124,7 @@ class Representative(Species):
 
 
 class Pokemon(Enum):
-	MAGIKARP = Species("Magikarp", catch_rate=255, base_stats={
+	MAGIKARP = Species(name="Magikarp", catch_rate=255, base_stats={
 		StatType.HP: 20,
 		StatType.ATK: 10,
 		StatType.DEF: 55,
@@ -87,7 +133,7 @@ class Pokemon(Enum):
 		StatType.SPEED: 80
 	})
 
-	RAYQUAZA = Species("Rayquaza", catch_rate=45, base_stats={
+	RAYQUAZA = Species(name="Rayquaza", catch_rate=45, base_stats={
 		StatType.HP: 105,
 		StatType.ATK: 150,
 		StatType.DEF: 90,
@@ -96,7 +142,7 @@ class Pokemon(Enum):
 		StatType.SPEED: 95
 	})
 
-	MEGA_RAYQUAZA = Species("Mega Rayquaza", catch_rate=45, base_stats={
+	MEGA_RAYQUAZA = Species(name="Mega Rayquaza", catch_rate=45, base_stats={
 		StatType.HP: 105,
 		StatType.ATK: 180,
 		StatType.DEF: 100,
@@ -104,4 +150,12 @@ class Pokemon(Enum):
 		StatType.SPDEF: 100,
 		StatType.SPEED: 115
 	})
+
+
+def main():
+	pretty_print(Pokemon)
+
+
+if __name__ == "__main__":
+	main()
 

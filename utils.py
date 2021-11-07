@@ -4,6 +4,8 @@ from frozendict import frozendict
 import json
 from typing import Tuple, Union, Type
 
+import voluptuous as vlps
+
 
 class StrEnum(str, enum.Enum):
 	"""Class with default str conversion to str(member value)."""
@@ -48,15 +50,22 @@ def const_dict(schema=None):
 	return _ConstDict
 
 
+def enum_const_dict(enum_: enum.EnumMeta, value_type: Type):
+	return const_dict(vlps.Schema(vlps.All({
+		enum_: value_type
+	}, vlps.Length(min=len(enum_), max=len(enum_)))))
+
+
 class KeysToStrings(json.JSONEncoder):
 	def _keys_to_string_encode(self, obj):
 		if isinstance(obj, dict):
 			def cast_keys(o):
 				return self._keys_to_string_encode(
-					o if isinstance(o, (str, int, float, bool)) or o is None
+					o
+					if isinstance(o, (str, int, float, bool)) or o is None
 					else str(o)
 				)
-			return {cast_keys(k): cast_keys(v) for k, v in obj.items()}
+			return {cast_keys(k): v for k, v in obj.items()}
 		else:
 			return obj
 
@@ -121,14 +130,32 @@ def multiplier_range_frac(mult: Fraction, prod: Union[int, IntRange_T]) -> IntRa
 	return multiplier_range(mult.numerator, numerator_range(mult.denominator, prod))
 
 
-def validator(value, name: str, type_: Union[Type, Tuple[Type]] = None, int_range: IntRange_T = None):
-	if not isinstance(value, type_):
-		types_str = f"one of {'|'.join(t.__name__ for t in type_)}" if isinstance(type_, tuple) else type_.__name__
-		raise TypeError(f"{name} should be {types_str}, not {type(value).__name__}")
-
-
 def main():
-	validator(5, "value", tuple)
+	class StatType(SEnum):
+		HP = 1
+		ATK = 2
+		DEF = 3
+		SPATK = 4
+		SPDEF = 5
+		SPEED = 6
+
+	import voluptuous as vlps
+
+	class BaseStats(enum_const_dict(StatType, int)):
+		...
+
+	print(type(StatType))
+
+	bs = BaseStats({
+		StatType.HP: 44,
+		StatType.ATK: 43,
+		StatType.DEF: 43,
+		StatType.SPATK: 33,
+		StatType.SPDEF: 21,
+		StatType.SPEED: 11,
+		StatType.HP: 434
+	})
+	print(bs)
 
 
 if __name__ == "__main__":

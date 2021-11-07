@@ -4,20 +4,34 @@ from pkmn_stat import StatType
 
 
 class NatureData:
-	def __init__(self, increased, decreased):
+	def __init__(self, increased: StatType, decreased: StatType):
 		self._increased = increased
 		self._decreased = decreased
 
 	@property
-	def increased(self):
+	def increased(self) -> StatType:
 		return self._increased
 
 	@property
-	def decreased(self):
+	def decreased(self) -> StatType:
 		return self._decreased
+
+	def is_simple(self) -> bool:
+		return self.increased == self.decreased
 
 
 class Nature(Enum):
+	@property
+	def increased(self) -> StatType:
+		return self.value.increased
+
+	@property
+	def decreased(self) -> StatType:
+		return self.value.decreased
+
+	def is_simple(self) -> bool:
+		return self.value.is_simple()
+
 	HARDY   = NatureData(StatType.ATK,   StatType.ATK)
 	LONELY  = NatureData(StatType.ATK,   StatType.DEF)
 	BRAVE   = NatureData(StatType.ATK,   StatType.SPATK)
@@ -47,3 +61,14 @@ class Nature(Enum):
 	SASSY   = NatureData(StatType.SPEED, StatType.SPATK)
 	CAREFUL = NatureData(StatType.SPEED, StatType.SPDEF)
 	QUIRKY  = NatureData(StatType.SPEED, StatType.SPEED)
+
+	DEFAULT = HARDY  # Convenient
+
+
+def main():
+	print(Nature.ADAMANT.is_simple())
+
+
+if __name__ == "__main__":
+	main()
+

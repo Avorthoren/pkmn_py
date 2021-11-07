@@ -4,20 +4,36 @@ from pkmn_stat import StatType
 
 
 class CharacteristicData:
-	def __init__(self, highest_stat, rem):
+	# Characteristic is pair of `stat_type` and `remainder` modulo `MOD`
+	# It implies that `stat_type` has highest iv value among other stat types,
+	# and this value modulo `MOD` equals `reminder`.
+	# There is rule for ties in iv values for different stats, but it requires
+	# pokemon's personality value:
+	# https://bulbapedia.bulbagarden.net/wiki/Characteristic#Ties
+	MOD = 5
+
+	def __init__(self, highest_stat: StatType, rem: int):
 		self._highest_stat = highest_stat
 		self._rem = rem
 
 	@property
-	def highest_stat(self):
+	def highest_stat(self) -> StatType:
 		return self._highest_stat
 
 	@property
-	def rem(self):
+	def rem(self) -> int:
 		return self._rem
 
 
 class Characteristic(Enum):
+	@property
+	def highest_stat(self) -> StatType:
+		return self.value.highest_stat
+
+	@property
+	def rem(self) -> int:
+		return self.value.rem
+
 	LOVES_TO_EAT            = CharacteristicData(StatType.HP,    0)
 	PROUD_OF_ITS_POWER      = CharacteristicData(StatType.ATK,   0)
 	STURDY_BODY             = CharacteristicData(StatType.DEF,   0)
