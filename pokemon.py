@@ -1,14 +1,23 @@
 from enum import Enum
+from typing import Dict
 
 from pkmn_stat import Stat, StatType
 
 
+LVL_RANGE = 1, 100
+
+
 class Species:
-	def __init__(self, name, catchRate, baseStats):
+	def __init__(
+		self,
+		name: str,
+		catch_rate: int,
+		base_stats: Dict[StatType, int]
+	):
 		self._name = name
-		self._catchRate = catchRate
+		self._catchRate = catch_rate
 		self._stats = {
-			type_: Stat(type_, base=baseStats[type_])
+			type_: Stat(type_, base=base_stats[type_])
 			for type_ in StatType
 		}
 
@@ -35,9 +44,9 @@ class Representative(Species):
 				self._stats[type_]._ev = stats[type_].get("ev", 0)
 				if nature.value.increased != nature.value.decreased:
 					if type_ == nature.value.increased:
-						self._stats[type_]._mult = 1.1
+						self._stats[type_]._mult = Stat.INCREASED_MULT
 					elif type_ == nature.value.decreased:
-						self._stats[type_]._mult = 0.9
+						self._stats[type_]._mult = Stat.DECREASED_MULT
 
 	def getIVSets(self):
 		if self._lvl is None:
@@ -69,7 +78,7 @@ class Representative(Species):
 
 
 class Pokemon(Enum):
-	MAGIKARP = Species("Magikarp", catchRate=255, baseStats={
+	MAGIKARP = Species("Magikarp", catch_rate=255, base_stats={
 		StatType.HP: 20,
 		StatType.ATK: 10,
 		StatType.DEF: 55,
@@ -78,7 +87,7 @@ class Pokemon(Enum):
 		StatType.SPEED: 80
 	})
 
-	RAYQUAZA = Species("Rayquaza", catchRate=45, baseStats={
+	RAYQUAZA = Species("Rayquaza", catch_rate=45, base_stats={
 		StatType.HP: 105,
 		StatType.ATK: 150,
 		StatType.DEF: 90,
@@ -87,7 +96,7 @@ class Pokemon(Enum):
 		StatType.SPEED: 95
 	})
 
-	MEGA_RAYQUAZA = Species("Mega Rayquaza", catchRate=45, baseStats={
+	MEGA_RAYQUAZA = Species("Mega Rayquaza", catch_rate=45, base_stats={
 		StatType.HP: 105,
 		StatType.ATK: 180,
 		StatType.DEF: 100,
