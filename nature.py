@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pkmn_stat import StatType
+from pkmn_stat_type import StatType
 
 
 class NatureData:

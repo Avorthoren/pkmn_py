@@ -1,7 +1,7 @@
 import enum
 from fractions import Fraction
 from frozendict import frozendict
-import json
+import json_utils
 from typing import Tuple, Union, Type
 
 import voluptuous as vlps
@@ -56,25 +56,13 @@ def enum_const_dict(enum_: enum.EnumMeta, value_type: Type):
 	}, vlps.Length(min=len(enum_), max=len(enum_)))))
 
 
-class KeysToStrings(json.JSONEncoder):
-	def _keys_to_string_encode(self, obj):
-		if isinstance(obj, dict):
-			def cast_keys(o):
-				return self._keys_to_string_encode(
-					o
-					if isinstance(o, (str, int, float, bool)) or o is None
-					else str(o)
-				)
-			return {cast_keys(k): v for k, v in obj.items()}
-		else:
-			return obj
-
-	def encode(self, obj):
-		return super(KeysToStrings, self).encode(self._keys_to_string_encode(obj))
-
-
 def pretty_print(data):
-	print(json.dumps(data, default=str, indent=4, cls=KeysToStrings))
+	print(json_utils.json.dumps(
+		data,
+		default=str,
+		indent=4,
+		cls=json_utils.KeysToStrings
+	))
 
 
 def clamp(x, min_=None, max_=None):

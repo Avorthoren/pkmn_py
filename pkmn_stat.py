@@ -4,19 +4,12 @@ from typing import Union
 
 import voluptuous as vlps
 
-from utils import enum_const_dict, pretty_print, SEnum, multiplier_range_frac, summand_range, IntRange_T
+from pkmn_stat_type import StatType
+from utils import enum_const_dict, pretty_print, multiplier_range_frac, summand_range, IntRange_T
+from nature import Nature
 
 
 LVL_RANGE = 1, 100
-
-
-class StatType(SEnum):
-	HP = 1
-	ATK = 2
-	DEF = 3
-	SPATK = 4
-	SPDEF = 5
-	SPEED = 6
 
 
 class BaseStats(enum_const_dict(StatType, int)):
@@ -46,6 +39,19 @@ class Stat:
 	INCREASED_MULT = Fraction(11, 10)
 	DECREASED_MULT = Fraction(9, 10)
 	POSSIBLE_NATURE_MULTS = DEFAULT_MULT, INCREASED_MULT, DECREASED_MULT
+
+	@classmethod
+	def get_mult(cls, stat_type: StatType, nature: Nature):
+		if stat_type == StatType.HP:
+			return None
+		elif nature.is_simple():
+			return cls.DEFAULT_MULT
+		elif stat_type == nature.increased:
+			return cls.INCREASED_MULT
+		elif stat_type == nature.decreased:
+			return cls.DECREASED_MULT
+		else:
+			return cls.DEFAULT_MULT
 
 	def __init__(
 		self,
@@ -179,7 +185,7 @@ class Stat:
 		self,
 		lvl: int = None,
 		val: int = None,
-		ev: int = 0,
+		ev: int = None,
 		mult: NatureMult_T = None  # None for self value
 	) -> IntRange_T:
 		if lvl is None:

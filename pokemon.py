@@ -1,13 +1,14 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Dict, Union
+from typing import Dict, Union, Set
 
 import voluptuous as vlps
 
 from catch import CATCH_RATE_RANGE
 from characteristic import Characteristic, CharacteristicData
 from nature import Nature
-from pkmn_stat import Stat, StatType, BaseStats, StatData, StatsData, LVL_RANGE
+from pkmn_stat import Stat, BaseStats, StatData, StatsData, LVL_RANGE
+from pkmn_stat_type import StatType
 from utils import pretty_print
 
 
@@ -28,6 +29,10 @@ class Species:
 		self._catchRate = vlps.Schema(vlps.All(int, vlps.Range(*CATCH_RATE_RANGE)))(catch_rate)
 
 
+NatureIVSets_T = Dict[StatType, Set[int]]
+IVSets_T = Dict[Nature, NatureIVSets_T]
+
+
 class Representative(Species):
 	def __init__(
 		self,
@@ -43,18 +48,15 @@ class Representative(Species):
 		# }
 		stats: Union[StatsData, Dict[StatType, Union[int, Dict[str, int]]]] = None
 	):
-		if nature is None:
-			raise NotImplementedError
-
 		spec = vlps.Schema(vlps.Any(Species, Pokemon))(spec)
 		if isinstance(spec, Pokemon):
 			spec = spec.value
 		spec: Species
 		super().__init__(spec._base_stats, spec._name, spec._catchRate)
 
-		self._nature = vlps.Schema(Nature)(nature)
-		self._characteristic = vlps.Schema(Characteristic)(characteristic)
-		self._lvl = vlps.Schema(vlps.All(int, vlps.Range(*LVL_RANGE)))(lvl)
+		self._nature = vlps.Schema(vlps.Maybe(Nature))(nature)
+		self._characteristic = vlps.Schema(vlps.Maybe(Characteristic))(characteristic)
+		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*LVL_RANGE))))(lvl)
 
 		if stats is None:
 			stats = StatsData({
@@ -74,7 +76,7 @@ class Representative(Species):
 			base_stat = spec._base_stats[stat_type]
 			stat = stats[stat_type]
 
-			if stat_type == StatType.HP:
+			if stat_type == StatType.HP or nature is None:
 				nature_mult = None
 			elif stat_type == nature.increased and not nature.is_simple():
 				nature_mult = Stat.INCREASED_MULT
@@ -93,34 +95,108 @@ class Representative(Species):
 				nature_mult
 			)
 
-	def get_iv_sets(self):
-		if self._lvl is None:
-			raise NotImplementedError
+	@staticmethod
+	def _characteristic_filter(
+		iv_sets: NatureIVSets_T,
+		characteristic: Characteristic
+	) -> NatureIVSets_T:
+		highest_stat, rem = characteristic.highest_stat, characteristic.rem
+		iv_sets[highest_stat] = {val for val in iv_sets[highest_stat] if val % CharacteristicData.MOD == rem}
+		if not iv_sets[highest_stat]:
+			raise ValueError("Stats have impossible values")
 
-		ranges = {
-			type_: self._stats[type_].get_iv_range()
-			for type_ in StatType
+		highest_stat_max_val = max(iv_sets[highest_stat])
+		for type_, set_ in iv_sets.items():
+			if type_ != highest_stat:
+				iv_sets[type_] = {val for val in iv_sets[type_] if val <= highest_stat_max_val}
+				if not iv_sets[type_]:
+					raise ValueError("Stats have impossible values")
+
+		return iv_sets
+
+	@classmethod
+	def _get_iv_sets_with_nature(
+		cls,
+		stats: Dict[StatType, Stat],  # nature multiplier must be set for all stats
+		characteristic: Characteristic = None
+	) -> NatureIVSets_T:
+		iv_ranges = {
+			stat_type: stat.get_iv_range()
+			for stat_type, stat in stats.items()
 		}
 
-		sets = {
+		iv_sets = {
 			type_: set(range(range_[0], range_[1] + 1))
-			for type_, range_ in ranges.items()
+			for type_, range_ in iv_ranges.items()
 		}
 
-		if self._characteristic is not None:
-			highest_stat, rem = self._characteristic.highest_stat, self._characteristic.rem
-			sets[highest_stat] = {val for val in sets[highest_stat] if val % CharacteristicData.MOD == rem}
-			if not sets[highest_stat]:
-				raise ValueError(f"This {self._name} has impossible input values")
+		if characteristic is not None:
+			iv_sets = cls._characteristic_filter(iv_sets, characteristic)
 
-			highest_stat_max_val = max(sets[highest_stat])
-			for type_, set_ in sets.items():
-				if type_ != highest_stat:
-					sets[type_] = {val for val in sets[type_] if val <= highest_stat_max_val}
-					if not sets[type_]:
-						raise ValueError(f"This {self._name} has impossible input values")
+		return iv_sets
 
-		return sets
+	def get_iv_sets(self) -> IVSets_T:
+		if self._lvl is None:
+			raise ValueError("Lvl must be specified")
+
+		if self._nature is not None:
+			return {
+				self._nature: self._get_iv_sets_with_nature(self._stats, self._characteristic)
+			}
+
+		# #####################################################################
+		# Nature is not defined                                               #
+		# #####################################################################
+
+		# For each stat_type find possible iv_sets for different nature mults.
+		pre_iv_sets = {}
+		for stat_type, stat in self._stats.items():
+			mult_iv_sets = {}
+			if stat_type == StatType.HP:
+				iv_range = stat.get_iv_range()
+				mult_iv_sets[None] = set(range(iv_range[0], iv_range[1] + 1))
+			else:
+				for mult in Stat.POSSIBLE_NATURE_MULTS:
+					try:
+						if stat_type == StatType.SPDEF:
+							test = True
+						iv_range = stat.get_iv_range(mult=mult)
+					except ValueError:
+						continue
+					mult_iv_sets[mult] = set(range(iv_range[0], iv_range[1] + 1))
+
+				if not mult_iv_sets:
+					raise ValueError(f"Calculated {stat_type.name} IVs are impossible")
+
+			pre_iv_sets[stat_type] = mult_iv_sets
+
+		# Define possible natures.
+		iv_sets = {}
+		for nature in Nature:
+			# All simple natures are equivalent if characteristic is not defined.
+			if nature.is_simple() and self._characteristic is None and nature != Nature.DEFAULT:
+				continue
+
+			try:
+				nature_iv_sets = {
+					stat_type: mult_iv_sets[Stat.get_mult(stat_type, nature)]
+					for stat_type, mult_iv_sets in pre_iv_sets.items()
+				}
+			except KeyError:
+				continue
+
+			if self._characteristic is not None:
+				try:
+					nature_iv_sets = self._characteristic_filter(nature_iv_sets, self._characteristic)
+				except ValueError:
+					continue
+
+			iv_sets[nature] = nature_iv_sets
+
+		if not iv_sets:
+			raise ValueError("Stats have impossible values")
+
+		return iv_sets
 
 
 class Pokemon(Enum):
