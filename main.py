@@ -7,31 +7,20 @@ from utils import pretty_print
 
 def main():
 	r = Representative(
-		spec=Pokemon.MEGA_RAYQUAZA,
+		spec=Pokemon.RAYQUAZA,
 		lvl=70,
 		stats={
 			StatType.HP: {"value": 248},
-			StatType.ATK: {"value": 257, "ev": 5},
-			StatType.DEF: {"value": 182},
-			StatType.SPATK: {"value": 278},
-			StatType.SPDEF: {"value": 159, "ev": 5},
-			StatType.SPEED: {"value": 154, "ev": 2}
+			StatType.ATK: {"value": 237, "ev": 6},
+			StatType.DEF: {"value": 145},
+			StatType.SPATK: {"value": 236, "ev": 1},
+			StatType.SPDEF: {"value": 168, "ev": 5},
+			StatType.SPEED: {"value": 130, "ev": 3}
 		}
 	)
 
 	iv_sets = r.get_iv_sets()
 	pretty_print(iv_sets)
-
-# {
-#     "Nature.LAX": {
-#         "HP": "{30, 31}",
-#         "ATK": "{0, 1}",
-#         "DEF": "{30, 31}",
-#         "SPATK": "{30, 31}",
-#         "SPDEF": "{20, 21}",
-#         "SPEED": "{9}"
-#     }
-# }
 
 
 if __name__ == "__main__":

@@ -158,8 +158,6 @@ class Representative(Species):
 			else:
 				for mult in Stat.POSSIBLE_NATURE_MULTS:
 					try:
-						if stat_type == StatType.SPDEF:
-							test = True
 						iv_range = stat.get_iv_range(mult=mult)
 					except ValueError:
 						continue
