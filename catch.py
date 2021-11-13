@@ -39,11 +39,11 @@ def prob(
 
 def main():
 	print(prob(
-		catch_rate=255,
-		hp_rate=1 / 48,
-		# ballBonus=1.5,
-		# statusBonus=2,
-		pokedex_caught=100
+		catch_rate=120,
+		hp_rate=1,
+		ball_bonus=3,
+		status_bonus=2,
+		pokedex_caught=600
 	))
 
 

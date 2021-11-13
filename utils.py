@@ -2,9 +2,18 @@ import enum
 from fractions import Fraction
 from frozendict import frozendict
 import json_utils
-from typing import Tuple, Union, Type
+from typing import Tuple, Union
 
 import voluptuous as vlps
+
+
+class _MissedValue:
+	pass
+
+
+# Placeholder
+_MISSED_VALUE = _MissedValue()
+
 
 
 class StrEnum(str, enum.Enum):
@@ -50,9 +59,9 @@ def const_dict(schema=None):
 	return _ConstDict
 
 
-def enum_const_dict(enum_: enum.EnumMeta, value_type: Type):
+def enum_const_dict(enum_: enum.EnumMeta, value_type, strict: bool = True):
 	return const_dict(vlps.Schema(vlps.All({
-		enum_: value_type
+		enum_: value_type if strict else vlps.Coerce(value_type)
 	}, vlps.Length(min=len(enum_), max=len(enum_)))))
 
 

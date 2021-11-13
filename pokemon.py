@@ -225,6 +225,15 @@ class Pokemon(Enum):
 		StatType.SPEED: 115
 	})
 
+	TOTODILE = Species(name="Totodile", catch_rate=45, base_stats={
+		StatType.HP: 50,
+		StatType.ATK: 65,
+		StatType.DEF: 64,
+		StatType.SPATK: 44,
+		StatType.SPDEF: 48,
+		StatType.SPEED: 43
+	})
+
 
 def main():
 	pretty_print(Pokemon)
