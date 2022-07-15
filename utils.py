@@ -15,7 +15,6 @@ class _MissedValue:
 _MISSED_VALUE = _MissedValue()
 
 
-
 class StrEnum(str, enum.Enum):
 	"""Class with default str conversion to str(member value)."""
 	def __str__(self):
