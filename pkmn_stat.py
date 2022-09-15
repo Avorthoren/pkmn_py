@@ -4,7 +4,7 @@ from typing import Union
 
 import voluptuous as vlps
 
-from pkmn_stat_type import StatType
+from pkmn_stat_type import StatType, GenStatType
 from utils import enum_const_dict, pretty_print, multiplier_range_frac, summand_range, IntRange_T
 from nature import Nature
 
@@ -13,6 +13,10 @@ LVL_RANGE = 1, 100
 
 
 class BaseStats(enum_const_dict(StatType, int)):
+	...
+
+
+class GenStats(enum_const_dict(GenStatType, int)):
 	...
 
 
@@ -81,10 +85,11 @@ class Stat:
 			self._mult = vlps.Schema(vlps.In(self.POSSIBLE_NATURE_MULTS))(mult)
 
 		if val is None:
+			self._val = None
 			try:
 				self._val = self.get_val()
 			except ValueError:
-				self._val = None
+				pass
 		else:
 			try:
 				self._val = vlps.Schema(vlps.All(int, vlps.Range(*self.get_val_range(
@@ -228,50 +233,50 @@ class Stat:
 
 
 def main():
-	# lvl = 78
-	#
-	# stats = [
-	# 	Stat(StatType.HP,    base=108, iv=24, lvl=lvl, ev=74),
-	# 	Stat(StatType.ATK,   base=130, iv=12, lvl=lvl, ev=190, mult=Stat.INCREASED_MULT),
-	# 	Stat(StatType.DEF,   base=95,  iv=30, lvl=lvl, ev=91),
-	# 	Stat(StatType.SPATK, base=80,  iv=16, lvl=lvl, ev=48,  mult=Stat.DECREASED_MULT),
-	# 	Stat(StatType.SPDEF, base=85,  iv=23, lvl=lvl, ev=84),
-	# 	Stat(StatType.SPEED, base=102, iv=5,  lvl=lvl, ev=23)
-	# ]
-	# for stat in stats:
-	# 	print(f"{stat._type.name}: {stat.get_val(lvl)}")
-	#
-	# stats = [
-	# 	Stat(StatType.HP,    base=108, val=289, lvl=lvl, ev=74),              # 24
-	# 	Stat(StatType.ATK,   base=130, val=278, lvl=lvl, ev=190, mult=Stat.INCREASED_MULT),   # 12
-	# 	Stat(StatType.DEF,   base=95,  val=193, lvl=lvl, ev=91),              # 30
-	# 	Stat(StatType.SPATK, base=80,  val=135, lvl=lvl, ev=48,  mult=Stat.DECREASED_MULT),   # 16
-	# 	Stat(StatType.SPDEF, base=85,  val=171, lvl=lvl, ev=84),              # 23
-	# 	Stat(StatType.SPEED, base=102, val=171, lvl=lvl, ev=23)               # 5
-	# ]
-	#
-	# for stat in stats:
-	# 	print(f"{stat._type.name}: {stat.get_iv_range()}")
-	#
-	# sd = StatsData({
-	# 	StatType.HP: StatData(51),
-	# 	StatType.ATK: StatData(17),
-	# 	StatType.DEF: StatData(39),
-	# 	StatType.SPATK: StatData(15),
-	# 	StatType.SPDEF: StatData(18),
-	# 	StatType.SPEED: StatData(51)
-	# })
-	# pretty_print(sd)
+	lvl = 78
 
-	print(multiplier_range_frac(Fraction(76, 100), 200))
-	print()
-	print(multiplier_range_frac(Fraction(13, 100), 51))
+	stats = [
+		Stat(StatType.HP,    base=108, iv=24, lvl=lvl, ev=74),
+		Stat(StatType.ATK,   base=130, iv=12, lvl=lvl, ev=190, mult=Stat.INCREASED_MULT),
+		Stat(StatType.DEF,   base=95,  iv=30, lvl=lvl, ev=91),
+		Stat(StatType.SPATK, base=80,  iv=16, lvl=lvl, ev=48,  mult=Stat.DECREASED_MULT),
+		Stat(StatType.SPDEF, base=85,  iv=23, lvl=lvl, ev=84),
+		Stat(StatType.SPEED, base=102, iv=5,  lvl=lvl, ev=23)
+	]
+	for stat in stats:
+		print(f"{stat._type.name}: {stat.get_val(lvl)}")
+
+	stats = [
+		Stat(StatType.HP,    base=108, val=289, lvl=lvl, ev=74),              # 24
+		Stat(StatType.ATK,   base=130, val=278, lvl=lvl, ev=190, mult=Stat.INCREASED_MULT),   # 12
+		Stat(StatType.DEF,   base=95,  val=193, lvl=lvl, ev=91),              # 30
+		Stat(StatType.SPATK, base=80,  val=135, lvl=lvl, ev=48,  mult=Stat.DECREASED_MULT),   # 16
+		Stat(StatType.SPDEF, base=85,  val=171, lvl=lvl, ev=84),              # 23
+		Stat(StatType.SPEED, base=102, val=171, lvl=lvl, ev=23)               # 5
+	]
+
+	for stat in stats:
+		print(f"{stat._type.name}: {stat.get_iv_range()}")
 
 	sd = StatsData({
-		st: StatData()
-		for st in StatType
+		StatType.HP: StatData(51),
+		StatType.ATK: StatData(17),
+		StatType.DEF: StatData(39),
+		StatType.SPATK: StatData(15),
+		StatType.SPDEF: StatData(18),
+		StatType.SPEED: StatData(51)
 	})
 	pretty_print(sd)
+
+	# print(multiplier_range_frac(Fraction(76, 100), 200))
+	# print()
+	# print(multiplier_range_frac(Fraction(13, 100), 51))
+	#
+	# sd = StatsData({
+	# 	st: StatData()
+	# 	for st in StatType
+	# })
+	# pretty_print(sd)
 
 
 if __name__ == "__main__":

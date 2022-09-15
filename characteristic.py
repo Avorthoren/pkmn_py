@@ -4,11 +4,11 @@ from pkmn_stat_type import StatType
 
 
 class CharacteristicData:
-	# Characteristic is pair of `stat_type` and `remainder` modulo `MOD`
-	# It implies that `stat_type` has highest iv value among other stat types,
-	# and this value modulo `MOD` equals `reminder`.
+	# Characteristic is a pair of `stat_type` and `remainder` modulo `MOD`
+	# It implies that `stat_type` has the highest iv value among other stat
+	# types, and this value modulo `MOD` equals `reminder`.
 	# There is rule for ties in iv values for different stats, but it requires
-	# pokemon's personality value:
+	# Pokémon's personality value:
 	# https://bulbapedia.bulbagarden.net/wiki/Characteristic#Ties
 	MOD = 5
 

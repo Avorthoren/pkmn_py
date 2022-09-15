@@ -31,7 +31,7 @@ class SEnumMeta(enum.EnumMeta):
 class SEnum(enum.Enum, metaclass=SEnumMeta):
 	"""Class with default str conversion to member name.
 
-	Also because of metaclass, SEnum[None] returns None without raising error.
+	Also, because of metaclass, SEnum[None] returns None without raising error.
 	"""
 	def __str__(self):
 		return str(self.name)
@@ -43,14 +43,20 @@ def const_dict(schema=None):
 	Validator is callable that checks the validity of the dict and raises error
 	in case of invalid data.
 
+	NOTE: Signature of const_dict(*args, **kwargs)
+	      and _SCHEMA = vlps.Schema(*args, **kwargs)
+	      can be useful for decreasing code length of function calls, but
+	      it restricts you with only ony type of validators for all instances.
+
 	Args:
 	schema - None | Validator
 	"""
 	class _ConstDict(frozendict):
 		_SCHEMA = schema
 
-		def __init__(self, *args, **kwargs):
-			super().__init__(*args, *kwargs)
+		def __init__(self, *_, **__):
+			# There is no need to call super().__init__, because starting from
+			# version 2.2.0 frozendict does not overload object.__init__.
 			if self._SCHEMA is not None:
 				# dict call is for avoiding endless recursion.
 				self._SCHEMA(dict(self))

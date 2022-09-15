@@ -22,7 +22,7 @@ class Type(SEnum):
 	DRAGON = enum.auto()
 	DARK = enum.auto()
 	FAIRY = enum.auto()
-	# Defence can be typeless when pokemon loses all its types (after using
+	# Defence can be typeless when Pokémon loses all its types (after using
 	# Burn Up or Roost, for example). Attacks can be typeless as well: Struggle,
 	# for example. For more details:
 	# https://bulbapedia.bulbagarden.net/wiki/Type#Typeless

@@ -24,7 +24,7 @@ def prob(
 	hp_rate: float = 1.0,       # current hp rate
 	ball_bonus: float = 1.0,    # pokeball multiplier
 	status_bonus: float = 1.0,  # non-volatile status condition bonus
-	pokedex_caught: int = 0     # total different 'caught' species in pokedex
+	pokedex_caught: int = 0     # total different 'caught' species in Pokédex
 ) -> float:
 	modified_catch_rate = catch_rate * (1 - 2 / 3 * hp_rate) * ball_bonus * status_bonus
 	trash_hold = int(TRASH_HOLD_RANGE / (CATCH_RATE_RANGE[1] / modified_catch_rate) ** 0.1875)

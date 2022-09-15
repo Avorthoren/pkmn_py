@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Collection
 from enum import Enum
 from typing import Dict, Union, Set
 
@@ -7,8 +8,8 @@ import voluptuous as vlps
 from catch import CATCH_RATE_RANGE
 from characteristic import Characteristic, CharacteristicData
 from nature import Nature
-from pkmn_stat import Stat, BaseStats, StatData, StatsData, LVL_RANGE
-from pkmn_stat_type import StatType
+from pkmn_stat import Stat, BaseStats, GenStats, StatData, StatsData, LVL_RANGE
+from pkmn_stat_type import StatType, GenStatType
 from utils import pretty_print
 
 
@@ -94,6 +95,19 @@ class Representative(Species):
 				stat.ev,
 				nature_mult
 			)
+
+	def getGenStats(self, lvl: int = None) -> GenStats:
+		statValues = {
+			statType: stat.get_val(lvl)
+			for statType, stat in self._stats.items()
+		}
+		return GenStats({
+			GenStatType.ATTACK: statValues[StatType.ATK],
+			GenStatType.DURABILITY: statValues[StatType.HP] * statValues[StatType.DEF],
+			GenStatType.SPATTACK: statValues[StatType.SPATK],
+			GenStatType.SPDURABILITY: statValues[StatType.HP] * statValues[StatType.SPDEF],
+			GenStatType.SPEED: statValues[StatType.SPEED]
+		})
 
 	@staticmethod
 	def _characteristic_filter(
@@ -234,9 +248,35 @@ class Pokemon(Enum):
 		StatType.SPEED: 43
 	})
 
+	AGGRON = Species(name="Aggron", catch_rate=45, base_stats={
+		StatType.HP: 70,
+		StatType.ATK: 110,
+		StatType.DEF: 180,
+		StatType.SPATK: 60,
+		StatType.SPDEF: 60,
+		StatType.SPEED: 50
+	})
+
 
 def main():
-	pretty_print(Pokemon)
+	lvl = 70
+
+	rGentle = Representative(
+		spec=Pokemon.AGGRON,
+		nature=Nature.GENTLE,
+		lvl=lvl,
+		stats={
+			StatType.HP: {"iv": 20},
+			StatType.ATK: {"iv": 20},
+			StatType.DEF: {"iv": 7},
+			StatType.SPATK: {"iv": 15},
+			StatType.SPDEF: {"iv": 20},
+			StatType.SPEED: {"iv": 0},
+		}
+	)
+
+	for st, sv in rGentle.getGenStats().items():
+		print(f"{st}: {sv}")
 
 
 if __name__ == "__main__":
