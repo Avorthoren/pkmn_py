@@ -5,14 +5,21 @@ from typing import Union
 import voluptuous as vlps
 
 from pkmn_stat_type import StatType, GenStatType
-from utils import enum_const_dict, pretty_print, multiplier_range_frac, summand_range, IntRange_T
+from utils import enum_const_dict, multiplier_range_frac, NumRange_T, IntRange,\
+	IntOrRange_T, FracRange, IntOrFracOrRange_T
 from nature import Nature
 
 
-LVL_RANGE = 1, 100
+LVL_RANGE = IntRange(1, 100)
+# Used in formulas
+LVL_NORM = 100
 
 
 class BaseStats(enum_const_dict(StatType, int)):
+	...
+
+
+class IVRanges(enum_const_dict(StatType, IntOrRange_T)):
 	...
 
 
@@ -20,29 +27,30 @@ class GenStats(enum_const_dict(GenStatType, int)):
 	...
 
 
-@dataclass
+@dataclass(slots=True)
 class StatData:
 	value: int = None
-	iv: int = None
-	ev: int = 0
+	iv: IntOrRange_T = None
+	ev: IntOrRange_T = 0
 
 
 class StatsData(enum_const_dict(StatType, StatData)):
 	...
 
 
-NatureMult_T = Union[int, Fraction]
+NatureMult_T = int | Fraction
 
 
 class Stat:
-	BASE_RANGE = 0, 256
-	IV_RANGE = 0, 31
-	EV_RANGE = 0, 252
+	BASE_RANGE = IntRange(0, 256)
+	IV_RANGE = IntRange(0, 31)
+	EV_RANGE = IntRange(0, 252)
 
 	DEFAULT_MULT = 1
 	INCREASED_MULT = Fraction(11, 10)
 	DECREASED_MULT = Fraction(9, 10)
-	POSSIBLE_NATURE_MULTS = DEFAULT_MULT, INCREASED_MULT, DECREASED_MULT
+	MULT_RANGE = FracRange(DECREASED_MULT, INCREASED_MULT)
+	POSSIBLE_MULTS = DEFAULT_MULT, INCREASED_MULT, DECREASED_MULT
 
 	@classmethod
 	def get_mult(cls, stat_type: StatType, nature: Nature):
@@ -63,15 +71,21 @@ class Stat:
 		base: int,
 		lvl: int = None,
 		val: int = None,
-		iv: int = None,
-		ev: int = 0,
-		mult: Union[NatureMult_T, None] = DEFAULT_MULT  # nature multiplier with convenient default value
+		iv: IntOrRange_T = None,
+		ev: int = None,
+		mult: NatureMult_T = None
 	):
 		self._type = vlps.Schema(StatType)(type_)
 		self._base = vlps.Schema(vlps.All(int, vlps.Range(*self.BASE_RANGE)))(base)
 		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*LVL_RANGE))))(lvl)
-		self._iv = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*self.IV_RANGE))))(iv)
-		self._ev = vlps.Schema(vlps.All(int, vlps.Range(*self.EV_RANGE)))(ev)
+		self._iv = vlps.Schema(vlps.Maybe(
+			vlps.All(
+				vlps.Any(IntRange, vlps.All(int, vlps.Coerce(IntRange))),
+				vlps.Range(*self.IV_RANGE),
+				IntRange.is_straight_validator
+			)
+		))(iv)
+		self._ev = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*self.EV_RANGE))))(ev)
 
 		if type_ == StatType.HP:
 			# For HP multiplier always is None (not used), but for protection
@@ -82,7 +96,7 @@ class Stat:
 		elif mult is None:
 			self._mult = None
 		else:
-			self._mult = vlps.Schema(vlps.In(self.POSSIBLE_NATURE_MULTS))(mult)
+			self._mult = vlps.Schema(vlps.In(self.POSSIBLE_MULTS))(mult)
 
 		if val is None:
 			self._val = None
@@ -92,7 +106,7 @@ class Stat:
 				pass
 		else:
 			try:
-				self._val = vlps.Schema(vlps.All(int, vlps.Range(*self.get_val_range(
+				self._val = vlps.Schema(vlps.All(int, vlps.Range(*self.calc_val(
 					self._type,
 					self._base,
 					self._iv,
@@ -103,96 +117,110 @@ class Stat:
 			except vlps.Error as e:
 				raise ValueError(f"{self._type} {e}")
 
-	@classmethod
-	def _get_hp_val(
-		cls,
-		base: int,
-		iv: int,
-		ev: int,
-		lvl: int
-	) -> int:
-		return (2*base + iv + ev//4) * lvl//LVL_RANGE[1] + lvl + 10
+	@property
+	def type(self) -> StatType:
+		return self._type
+
+	@property
+	def base(self) -> int:
+		return self._base
 
 	@classmethod
-	def _get_non_hp_val(
+	def _calc_hp_val(
 		cls,
-		base: int,
-		iv: int,
-		ev: int,
-		lvl: int,
-		mult: NatureMult_T
-	) -> int:
-		val = (2*base + iv + ev//4) * lvl//LVL_RANGE[1] + 5
+		base: IntOrRange_T,
+		lvl: IntOrRange_T,
+		iv: IntOrRange_T,
+		ev: IntOrRange_T
+	) -> IntOrRange_T:
+		return (2*base + iv + ev//4) * lvl // LVL_NORM + lvl + 10
+
+	@classmethod
+	def _calc_non_hp_val(
+		cls,
+		base: IntOrRange_T,
+		lvl: IntOrRange_T,
+		iv: IntOrRange_T,
+		ev: IntOrRange_T,
+		mult: IntOrFracOrRange_T
+	) -> IntOrRange_T:
+		val = (2*base + iv + ev//4) * lvl // LVL_NORM + 5
 		if mult != cls.DEFAULT_MULT:
 			val = val * mult.numerator // mult.denominator
 
 		return val
 
 	@classmethod
-	def _get_val(
+	def _calc_val(
 		cls,
 		type_: StatType,
-		base: int,
-		iv: int,
-		ev: int,
-		lvl: int,
-		mult: NatureMult_T = None
-	) -> int:
+		base: IntOrRange_T,
+		lvl: IntOrRange_T,
+		iv: IntOrRange_T,
+		ev: IntOrRange_T,
+		mult: IntOrFracOrRange_T | None  # None for HP.
+	) -> IntOrRange_T:
 		if type_ == StatType.HP:
-			return cls._get_hp_val(base, iv, ev, lvl)
+			return cls._calc_hp_val(base, lvl, iv, ev)
 		else:
-			return cls._get_non_hp_val(base, iv, ev, lvl, mult)
+			return cls._calc_non_hp_val(base, lvl, iv, ev, mult)
 
 	@classmethod
-	def get_val_range(
+	def calc_val(
 		cls,
 		type_: StatType,
-		base: int,
-		iv: int = None,
-		ev: int = 0,
-		lvl: int = None,
+		base: IntOrRange_T,
+		lvl: IntOrRange_T = None,
+		iv: IntOrRange_T = None,
+		ev: IntOrRange_T = None,
 		mult: NatureMult_T = None
-	) -> IntRange_T:
-		iv_range = cls.IV_RANGE if iv is None else (iv, iv)
-		lvl_range = LVL_RANGE if lvl is None else (lvl, lvl)
+	) -> IntOrRange_T:
+		if lvl is None:
+			lvl = LVL_RANGE
+
+		if iv is None:
+			iv = cls.IV_RANGE
+
+		if ev is None:
+			ev = cls.EV_RANGE
 
 		if type_ == StatType.HP:
 			if mult is not None:
 				raise ValueError(f"{StatType.HP} can not have nature multiplier")
-			mult_range = None, None
 		elif mult is None:
-			mult_range = cls.DECREASED_MULT, cls.INCREASED_MULT
-		else:
-			mult_range = mult, mult
+			mult = cls.MULT_RANGE
 
-		return (
-			cls._get_val(type_, base, iv_range[0], ev, lvl_range[0], mult_range[0]),
-			cls._get_val(type_, base, iv_range[1], ev, lvl_range[1], mult_range[1])
-		)
+		return cls._calc_val(type_, base, iv, ev, lvl, mult)
 
-	def get_val(self, lvl: int = None) -> int:
+	def get_val(
+		self,
+		lvl: IntOrRange_T = None,
+		iv: IntOrRange_T = None,
+		ev: IntOrRange_T = None,
+		mult: NatureMult_T = None
+	) -> IntOrRange_T:
 		"""Get stat value."""
 		if lvl is None:
-			if self._lvl is None:
-				raise ValueError("Lvl must be specified")
-
-			if self._val is not None:
-				return self._val
-
 			lvl = self._lvl
 
-		if self._iv is None:
-			raise ValueError("IV must be specified")
+		if iv is None:
+			iv = self._iv
 
-		return self._get_val(self._type, self._base, self._iv, self._ev, lvl, self._mult)
+		if ev is None:
+			ev = self._ev
 
-	def get_iv_range(
+		if mult is None:
+			mult = self._mult
+
+		return self.calc_val(self._type, self._base, lvl, iv, ev, mult)
+
+	def get_iv(
 		self,
 		lvl: int = None,
 		val: int = None,
-		ev: int = None,
+		ev: IntOrRange_T = None,
 		mult: NatureMult_T = None  # None for self value
-	) -> IntRange_T:
+	) -> IntRange:
 		if lvl is None:
 			if self._lvl is None:
 				raise ValueError("Lvl must be specified")
@@ -211,21 +239,20 @@ class Stat:
 				raise ValueError("Nature multiplier must be specified")
 			mult = self._mult
 
+		#     HP =  (2*base + iv + ev//4) * lvl // LVL_NORM + lvl + 10
+		# NON_HP = ((2*base + iv + ev//4) * lvl // LVL_NORM + 5) * mult
+
 		if self._type == StatType.HP:
-			left = val - 10 - lvl
-			range_ = left, left
+			range_ = val - 10 - lvl
 		elif mult != self.DEFAULT_MULT:
-			range_ = multiplier_range_frac(mult, val)
-			range_ = summand_range(5, range_)
+			range_ = multiplier_range_frac(mult, val) - 5
 		else:
-			left = val - 5
-			range_ = left, left
+			range_ = val - 5
 
-		range_ = multiplier_range_frac(Fraction(lvl, LVL_RANGE[1]), range_)
-
-		base_and_ev = 2*self._base + ev//4
+		range_ = multiplier_range_frac(Fraction(lvl, LVL_NORM), range_)
+		range_ -= 2*self._base + ev//4
 		try:
-			range_ = summand_range(base_and_ev, range_, *self.IV_RANGE)
+			range_.clamp(self.IV_RANGE)
 		except ValueError as e:
 			raise ValueError(f"Calculated {self._type.name} IVs are impossible: {e}") from e
 
@@ -235,16 +262,16 @@ class Stat:
 def main():
 	lvl = 78
 
-	stats = [
-		Stat(StatType.HP,    base=108, iv=24, lvl=lvl, ev=74),
-		Stat(StatType.ATK,   base=130, iv=12, lvl=lvl, ev=190, mult=Stat.INCREASED_MULT),
-		Stat(StatType.DEF,   base=95,  iv=30, lvl=lvl, ev=91),
-		Stat(StatType.SPATK, base=80,  iv=16, lvl=lvl, ev=48,  mult=Stat.DECREASED_MULT),
-		Stat(StatType.SPDEF, base=85,  iv=23, lvl=lvl, ev=84),
-		Stat(StatType.SPEED, base=102, iv=5,  lvl=lvl, ev=23)
-	]
-	for stat in stats:
-		print(f"{stat._type.name}: {stat.get_val(lvl)}")
+	# stats = [
+	# 	Stat(StatType.HP,    base=108, iv=24, lvl=lvl, ev=74),
+	# 	Stat(StatType.ATK,   base=130, iv=12, lvl=lvl, ev=190, mult=Stat.INCREASED_MULT),
+	# 	Stat(StatType.DEF,   base=95,  iv=30, lvl=lvl, ev=91),
+	# 	Stat(StatType.SPATK, base=80,  iv=16, lvl=lvl, ev=48,  mult=Stat.DECREASED_MULT),
+	# 	Stat(StatType.SPDEF, base=85,  iv=23, lvl=lvl, ev=84),
+	# 	Stat(StatType.SPEED, base=102, iv=5,  lvl=lvl, ev=23)
+	# ]
+	# for stat in stats:
+	# 	print(f"{stat._type.name}: {stat.get_val(lvl)}")
 
 	stats = [
 		Stat(StatType.HP,    base=108, val=289, lvl=lvl, ev=74),              # 24
@@ -256,17 +283,50 @@ def main():
 	]
 
 	for stat in stats:
-		print(f"{stat._type.name}: {stat.get_iv_range()}")
+		print(f"{stat.type.name}: {stat.get_iv()}")
+	print()
 
-	sd = StatsData({
-		StatType.HP: StatData(51),
-		StatType.ATK: StatData(17),
-		StatType.DEF: StatData(39),
-		StatType.SPATK: StatData(15),
-		StatType.SPDEF: StatData(18),
-		StatType.SPEED: StatData(51)
-	})
-	pretty_print(sd)
+	stats = [
+		Stat(StatType.HP,    base=70, val=54, lvl=17),              # 24
+		Stat(StatType.ATK,   base=110, val=45, lvl=17),   # 12
+		Stat(StatType.DEF,   base=180,  val=60, lvl=17, mult=Stat.DECREASED_MULT),              # 30
+		Stat(StatType.SPATK, base=60,  val=28, lvl=17),   # 16
+		Stat(StatType.SPDEF, base=60,  val=30, lvl=17, mult=Stat.INCREASED_MULT),              # 23
+		Stat(StatType.SPEED, base=50, val=22, lvl=17)               # 5
+	]
+
+	for stat in stats:
+		print(f"{stat.type.name}: {stat.get_iv()}")
+	print()
+
+	lvl = 50
+	print(Stat.calc_val(type_=StatType.HP, base=70, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.ATK, base=110, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.DEF, base=180, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.SPATK, base=60, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.SPDEF, base=60, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.SPEED, base=50, lvl=lvl))
+	print()
+
+	lvl = 100
+	print(Stat.calc_val(type_=StatType.HP, base=70, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.ATK, base=110, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.DEF, base=180, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.SPATK, base=60, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.SPDEF, base=60, lvl=lvl))
+	print(Stat.calc_val(type_=StatType.SPEED, base=50, lvl=lvl))
+	print()
+
+
+	# sd = StatsData({
+	# 	StatType.HP: StatData(51),
+	# 	StatType.ATK: StatData(17),
+	# 	StatType.DEF: StatData(39),
+	# 	StatType.SPATK: StatData(15),
+	# 	StatType.SPDEF: StatData(18),
+	# 	StatType.SPEED: StatData(51)
+	# })
+	# pretty_print(sd)
 
 	# print(multiplier_range_frac(Fraction(76, 100), 200))
 	# print()

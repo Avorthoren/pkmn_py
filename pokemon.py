@@ -1,5 +1,4 @@
 from __future__ import annotations
-from collections.abc import Collection
 from enum import Enum
 from typing import Dict, Union, Set
 
@@ -47,7 +46,8 @@ class Representative(Species):
 		#     StatType.ATK: {"value": 70, "ev": 252},
 		#     ...
 		# }
-		stats: Union[StatsData, Dict[StatType, Union[int, Dict[str, int]]]] = None
+		stats: Union[StatsData, Dict[StatType, Union[int, Dict[str, int]]]] = None,
+		name: str = None
 	):
 		spec = vlps.Schema(vlps.Any(Species, Pokemon))(spec)
 		if isinstance(spec, Pokemon):
@@ -58,6 +58,7 @@ class Representative(Species):
 		self._nature = vlps.Schema(vlps.Maybe(Nature))(nature)
 		self._characteristic = vlps.Schema(vlps.Maybe(Characteristic))(characteristic)
 		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*LVL_RANGE))))(lvl)
+		self._name = name
 
 		if stats is None:
 			stats = StatsData({
@@ -95,6 +96,10 @@ class Representative(Species):
 				stat.ev,
 				nature_mult
 			)
+
+	@property
+	def name(self) -> str | None:
+		return self._name
 
 	def getGenStats(self, lvl: int = None) -> GenStats:
 		statValues = {
@@ -135,7 +140,7 @@ class Representative(Species):
 		characteristic: Characteristic = None
 	) -> NatureIVSets_T:
 		iv_ranges = {
-			stat_type: stat.get_iv_range()
+			stat_type: stat.get_iv()
 			for stat_type, stat in stats.items()
 		}
 
@@ -167,12 +172,12 @@ class Representative(Species):
 		for stat_type, stat in self._stats.items():
 			mult_iv_sets = {}
 			if stat_type == StatType.HP:
-				iv_range = stat.get_iv_range()
+				iv_range = stat.get_iv()
 				mult_iv_sets[None] = set(range(iv_range[0], iv_range[1] + 1))
 			else:
-				for mult in Stat.POSSIBLE_NATURE_MULTS:
+				for mult in Stat.POSSIBLE_MULTS:
 					try:
-						iv_range = stat.get_iv_range(mult=mult)
+						iv_range = stat.get_iv(mult=mult)
 					except ValueError:
 						continue
 					mult_iv_sets[mult] = set(range(iv_range[0], iv_range[1] + 1))
