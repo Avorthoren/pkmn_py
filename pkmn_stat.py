@@ -1,5 +1,7 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import Optional
 
 import voluptuous as vlps
 
@@ -14,26 +16,50 @@ LVL_NORM = 100
 
 
 class BaseStats(enum_const_dict(StatType, int)):
-	...
+	pass
 
 
 class IVRanges(enum_const_dict(StatType, IntOrRange_T)):
-	...
+	pass
+
+
+class Stats(enum_const_dict(StatType, IntOrRange_T)):
+	pass
 
 
 class GenStats(enum_const_dict(GenStatType, IntOrRange_T)):
-	...
+	pass
 
 
 @dataclass(slots=True)
 class StatData:
 	value: int = None
-	iv: IntOrRange_T = None
-	ev: IntOrRange_T = 0
+	iv: Optional[IntOrRange_T] = None
+	ev: Optional[IntOrRange_T] = None
+
+	@classmethod
+	def bare_val(cls, value: int = None) -> StatData:
+		return cls(value=value, ev=0)
 
 
 class StatsData(enum_const_dict(StatType, StatData)):
 	...
+
+
+# Structure like:
+# {
+#     StatType.HP: 100,  # `value` argument
+#     StatType.ATK: {"value": 70, "ev": 252},
+#     StatType.DEF: {"value": 90, "ev": None, "iv": IntRange(4, 7)},
+#     ...
+# }
+InputStatsData_T = dict[
+	StatType,
+	IntOrRange_T | None | dict[
+		str,
+		IntOrRange_T | None
+	]
+]
 
 
 NatureMult_T = int | Fraction
@@ -69,9 +95,9 @@ class Stat:
 		base: int,
 		lvl: int = None,
 		val: int = None,
-		iv: IntOrRange_T = None,
+		iv: Optional[IntOrRange_T] = None,
 		ev: int = None,
-		mult: NatureMult_T = None
+		mult: Optional[NatureMult_T] = None
 	):
 		self._type = vlps.Schema(StatType)(type_)
 		self._base = vlps.Schema(vlps.All(int, self.BASE_RANGE.in_validator))(base)
@@ -156,7 +182,7 @@ class Stat:
 		lvl: IntOrRange_T,
 		iv: IntOrRange_T,
 		ev: IntOrRange_T,
-		mult: IntOrFracOrRange_T | None  # None for HP.
+		mult: Optional[IntOrFracOrRange_T]  # None for HP.
 	) -> IntOrRange_T:
 		if type_ == StatType.HP:
 			return cls._calc_hp_val(base, lvl, iv, ev)
@@ -171,7 +197,7 @@ class Stat:
 		lvl: IntOrRange_T = None,
 		iv: IntOrRange_T = None,
 		ev: IntOrRange_T = None,
-		mult: NatureMult_T = None
+		mult: Optional[NatureMult_T] = None
 	) -> IntOrRange_T:
 		if lvl is None:
 			lvl = LVL_RANGE
@@ -192,10 +218,10 @@ class Stat:
 
 	def get_val(
 		self,
-		lvl: IntOrRange_T = None,
-		iv: IntOrRange_T = None,
-		ev: IntOrRange_T = None,
-		mult: NatureMult_T = None
+		lvl: Optional[IntOrRange_T] = None,
+		iv: Optional[IntOrRange_T] = None,
+		ev: Optional[IntOrRange_T] = None,
+		mult: Optional[NatureMult_T] = None
 	) -> IntOrRange_T:
 		"""Get stat value."""
 		if lvl is None:
@@ -216,8 +242,8 @@ class Stat:
 		self,
 		lvl: int = None,
 		val: int = None,
-		ev: IntOrRange_T = None,
-		mult: NatureMult_T = None  # None for self value
+		ev: Optional[IntOrRange_T] = None,
+		mult: Optional[NatureMult_T] = None  # None for self value
 	) -> IntRange:
 		if lvl is None:
 			if self._lvl is None:

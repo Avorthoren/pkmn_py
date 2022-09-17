@@ -11,8 +11,8 @@ class StatType(SEnum):
 
 
 class GenStatType(SEnum):
-	ATTACK = enum.auto()
-	DURABILITY = enum.auto()    # HP * DEF
-	SPATTACK = enum.auto()
-	SPDURABILITY = enum.auto()  # HP * SPDEF
+	ATK = enum.auto()
+	DUR = enum.auto()    # HP * DEF
+	SPATK = enum.auto()
+	SPDUR = enum.auto()  # HP * SPDEF
 	SPEED = enum.auto()

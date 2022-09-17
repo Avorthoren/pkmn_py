@@ -1,12 +1,12 @@
 from characteristic import Characteristic
 from nature import Nature
-from pokemon import Pokemon, Representative
+from pokemon import Pokemon, Sample
 from pkmn_stat_type import StatType
 from utils import pretty_print
 
 
 def main():
-	# r = Representative(
+	# r = Sample(
 	# 	spec=Pokemon.RAYQUAZA,
 	# 	lvl=70,
 	# 	stats={
@@ -19,7 +19,7 @@ def main():
 	# 	}
 	# )
 
-	r = Representative(
+	r = Sample(
 		spec=Pokemon.TOTODILE,
 		lvl=5,
 		nature=Nature.BRAVE,

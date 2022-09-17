@@ -1,13 +1,13 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Dict, Union, Set
+from typing import Dict, Union, Set, Optional
 
 import voluptuous as vlps
 
 from catch import CATCH_RATE_RANGE
 from characteristic import Characteristic, CharacteristicData
 from nature import Nature
-from pkmn_stat import Stat, BaseStats, GenStats, StatData, StatsData, LVL_RANGE
+from pkmn_stat import Stat, BaseStats, Stats, GenStats, StatData, StatsData, InputStatsData_T, LVL_RANGE
 from pkmn_stat_type import StatType, GenStatType
 from utils import pretty_print, IntRange
 
@@ -15,7 +15,7 @@ from utils import pretty_print, IntRange
 class Species:
 	def __init__(
 		self,
-		base_stats: Union[BaseStats, Dict[StatType, int]],
+		base_stats: BaseStats | Dict[StatType, int],
 		name: str = None,
 		catch_rate: int = None
 	):
@@ -33,20 +33,16 @@ NatureIVSets_T = Dict[StatType, Set[int]]
 IVSets_T = Dict[Nature, NatureIVSets_T]
 
 
-class Representative(Species):
+class Sample(Species):
+	MAX_IVS = 510
+
 	def __init__(
 		self,
 		spec: Species | Pokemon,
 		nature: Nature = None,
 		characteristic: Characteristic = None,
 		lvl: int = None,
-		# Second variant for `stats` argument is:
-		# {
-		#     StatType.HP: 100,  # `value` argument
-		#     StatType.ATK: {"value": 70, "ev": 252},
-		#     ...
-		# }
-		stats: StatsData | Dict[StatType, int | Dict[str, int]] = None,
+		stats: Optional[StatsData | InputStatsData_T] = None,
 		name: str = None
 	):
 		spec = vlps.Schema(vlps.Any(Species, Pokemon))(spec)
@@ -66,9 +62,10 @@ class Representative(Species):
 				for stat_type in StatType
 			})
 		elif not isinstance(stats, StatsData):
+			stats: InputStatsData_T
 			# Auto validation.
 			stats = StatsData({
-				stat_type: StatData(stat_data) if isinstance(stat_data, int) else StatData(**stat_data)
+				stat_type: StatData(**stat_data) if isinstance(stat_data, dict) else StatData(stat_data)
 				for stat_type, stat_data in stats.items()
 			})
 		stats: StatsData
@@ -101,16 +98,20 @@ class Representative(Species):
 	def name(self) -> str | None:
 		return self._name
 
-	def getGenStats(self, lvl: int = None) -> GenStats:
-		statValues = {
+	def getStats(self, lvl: int = None) -> Stats:
+		return Stats({
 			statType: stat.get_val(lvl)
 			for statType, stat in self._stats.items()
-		}
+		})
+
+	def getGenStats(self, lvl: int = None) -> GenStats:
+		statValues = self.getStats(lvl)
+
 		return GenStats({
-			GenStatType.ATTACK: statValues[StatType.ATK],
-			GenStatType.DURABILITY: statValues[StatType.HP] * statValues[StatType.DEF],
-			GenStatType.SPATTACK: statValues[StatType.SPATK],
-			GenStatType.SPDURABILITY: statValues[StatType.HP] * statValues[StatType.SPDEF],
+			GenStatType.ATK: statValues[StatType.ATK],
+			GenStatType.DUR: statValues[StatType.HP] * statValues[StatType.DEF],
+			GenStatType.SPATK: statValues[StatType.SPATK],
+			GenStatType.SPDUR: statValues[StatType.HP] * statValues[StatType.SPDEF],
 			GenStatType.SPEED: statValues[StatType.SPEED]
 		})
 
@@ -268,19 +269,23 @@ class Pokemon(Enum):
 def main():
 	lvl = 70
 
-	rGentle = Representative(
+	rGentle = Sample(
 		spec=Pokemon.AGGRON,
 		nature=Nature.GENTLE,
 		lvl=lvl,
 		stats={
-			StatType.HP: {"iv": IntRange(20, 21), "ev": 10},
-			StatType.ATK: {"iv": 20, "ev": 10},
-			StatType.DEF: {"iv": IntRange(7, 11), "ev": 10},
-			StatType.SPATK: {"iv": IntRange(15, 19), "ev": 10},
-			StatType.SPDEF: {"iv": IntRange(15, 18), "ev": 10},
-			StatType.SPEED: {"iv": 0, "ev": 10},
+			StatType.HP: {"iv": IntRange(20, 21), "ev": 85},
+			StatType.ATK: {"iv": 20, "ev": 85},
+			StatType.DEF: {"iv": IntRange(7, 11), "ev": 85},
+			StatType.SPATK: {"iv": IntRange(15, 19), "ev": 85},
+			StatType.SPDEF: {"iv": IntRange(15, 18), "ev": 85},
+			StatType.SPEED: {"iv": 0, "ev": 85},
 		}
 	)
+
+	for st, sv in rGentle.getStats().items():
+		print(f"{st}: {sv}")
+	print()
 
 	for st, sv in rGentle.getGenStats().items():
 		print(f"{st}: {sv}")
