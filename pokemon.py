@@ -9,7 +9,7 @@ from characteristic import Characteristic, CharacteristicData
 from nature import Nature
 from pkmn_stat import Stat, BaseStats, GenStats, StatData, StatsData, LVL_RANGE
 from pkmn_stat_type import StatType, GenStatType
-from utils import pretty_print
+from utils import pretty_print, IntRange
 
 
 class Species:
@@ -26,7 +26,7 @@ class Species:
 		self._stats = None  # placeholder for child-class
 
 		self._name = vlps.Schema(str)(name)
-		self._catchRate = vlps.Schema(vlps.All(int, vlps.Range(*CATCH_RATE_RANGE)))(catch_rate)
+		self._catchRate = vlps.Schema(vlps.All(int, CATCH_RATE_RANGE.in_validator))(catch_rate)
 
 
 NatureIVSets_T = Dict[StatType, Set[int]]
@@ -36,7 +36,7 @@ IVSets_T = Dict[Nature, NatureIVSets_T]
 class Representative(Species):
 	def __init__(
 		self,
-		spec: Union[Species, Pokemon],
+		spec: Species | Pokemon,
 		nature: Nature = None,
 		characteristic: Characteristic = None,
 		lvl: int = None,
@@ -46,7 +46,7 @@ class Representative(Species):
 		#     StatType.ATK: {"value": 70, "ev": 252},
 		#     ...
 		# }
-		stats: Union[StatsData, Dict[StatType, Union[int, Dict[str, int]]]] = None,
+		stats: StatsData | Dict[StatType, int | Dict[str, int]] = None,
 		name: str = None
 	):
 		spec = vlps.Schema(vlps.Any(Species, Pokemon))(spec)
@@ -57,7 +57,7 @@ class Representative(Species):
 
 		self._nature = vlps.Schema(vlps.Maybe(Nature))(nature)
 		self._characteristic = vlps.Schema(vlps.Maybe(Characteristic))(characteristic)
-		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*LVL_RANGE))))(lvl)
+		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, LVL_RANGE.in_validator)))(lvl)
 		self._name = name
 
 		if stats is None:
@@ -120,14 +120,22 @@ class Representative(Species):
 		characteristic: Characteristic
 	) -> NatureIVSets_T:
 		highest_stat, rem = characteristic.highest_stat, characteristic.rem
-		iv_sets[highest_stat] = {val for val in iv_sets[highest_stat] if val % CharacteristicData.MOD == rem}
+		iv_sets[highest_stat] = {
+			val
+			for val in iv_sets[highest_stat]
+			if val % CharacteristicData.MOD == rem
+		}
 		if not iv_sets[highest_stat]:
 			raise ValueError("Stats have impossible values")
 
 		highest_stat_max_val = max(iv_sets[highest_stat])
 		for type_, set_ in iv_sets.items():
 			if type_ != highest_stat:
-				iv_sets[type_] = {val for val in iv_sets[type_] if val <= highest_stat_max_val}
+				iv_sets[type_] = {
+					val
+					for val in iv_sets[type_]
+					if val <= highest_stat_max_val
+				}
 				if not iv_sets[type_]:
 					raise ValueError("Stats have impossible values")
 
@@ -139,14 +147,9 @@ class Representative(Species):
 		stats: Dict[StatType, Stat],  # nature multiplier must be set for all stats
 		characteristic: Characteristic = None
 	) -> NatureIVSets_T:
-		iv_ranges = {
-			stat_type: stat.get_iv()
-			for stat_type, stat in stats.items()
-		}
-
 		iv_sets = {
-			type_: set(range(range_[0], range_[1] + 1))
-			for type_, range_ in iv_ranges.items()
+			stat_type: set(stat.get_iv())
+			for stat_type, stat in stats.items()
 		}
 
 		if characteristic is not None:
@@ -172,15 +175,14 @@ class Representative(Species):
 		for stat_type, stat in self._stats.items():
 			mult_iv_sets = {}
 			if stat_type == StatType.HP:
-				iv_range = stat.get_iv()
-				mult_iv_sets[None] = set(range(iv_range[0], iv_range[1] + 1))
+				mult_iv_sets[None] = set(stat.get_iv())
 			else:
 				for mult in Stat.POSSIBLE_MULTS:
 					try:
 						iv_range = stat.get_iv(mult=mult)
 					except ValueError:
 						continue
-					mult_iv_sets[mult] = set(range(iv_range[0], iv_range[1] + 1))
+					mult_iv_sets[mult] = set(iv_range)
 
 				if not mult_iv_sets:
 					raise ValueError(f"Calculated {stat_type.name} IVs are impossible")
@@ -271,12 +273,12 @@ def main():
 		nature=Nature.GENTLE,
 		lvl=lvl,
 		stats={
-			StatType.HP: {"iv": 20},
-			StatType.ATK: {"iv": 20},
-			StatType.DEF: {"iv": 7},
-			StatType.SPATK: {"iv": 15},
-			StatType.SPDEF: {"iv": 20},
-			StatType.SPEED: {"iv": 0},
+			StatType.HP: {"iv": IntRange(20, 21), "ev": 10},
+			StatType.ATK: {"iv": 20, "ev": 10},
+			StatType.DEF: {"iv": IntRange(7, 11), "ev": 10},
+			StatType.SPATK: {"iv": IntRange(15, 19), "ev": 10},
+			StatType.SPDEF: {"iv": IntRange(15, 18), "ev": 10},
+			StatType.SPEED: {"iv": 0, "ev": 10},
 		}
 	)
 

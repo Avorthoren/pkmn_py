@@ -1,4 +1,6 @@
-CATCH_RATE_RANGE = 1, 255
+from utils import IntRange
+
+CATCH_RATE_RANGE = IntRange(1, 255)
 TRASH_HOLD_RANGE = 256**2
 CRITICAL_CAPTURE_TRASH_HOLD_RANGE = 256
 SHAKES = 4
@@ -27,7 +29,7 @@ def prob(
 	pokedex_caught: int = 0     # total different 'caught' species in Pokédex
 ) -> float:
 	modified_catch_rate = catch_rate * (1 - 2 / 3 * hp_rate) * ball_bonus * status_bonus
-	trash_hold = int(TRASH_HOLD_RANGE / (CATCH_RATE_RANGE[1] / modified_catch_rate) ** 0.1875)
+	trash_hold = int(TRASH_HOLD_RANGE / (CATCH_RATE_RANGE.max / modified_catch_rate) ** 0.1875)
 	shake_succ_prob = min(trash_hold / TRASH_HOLD_RANGE, 1.0)
 	capture_prob = shake_succ_prob ** SHAKES
 

@@ -1,12 +1,10 @@
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Union
 
 import voluptuous as vlps
 
 from pkmn_stat_type import StatType, GenStatType
-from utils import enum_const_dict, multiplier_range_frac, NumRange_T, IntRange,\
-	IntOrRange_T, FracRange, IntOrFracOrRange_T
+from utils import enum_const_dict, multiplier_range_frac, IntRange, IntOrRange_T, FracRange, IntOrFracOrRange_T
 from nature import Nature
 
 
@@ -23,7 +21,7 @@ class IVRanges(enum_const_dict(StatType, IntOrRange_T)):
 	...
 
 
-class GenStats(enum_const_dict(GenStatType, int)):
+class GenStats(enum_const_dict(GenStatType, IntOrRange_T)):
 	...
 
 
@@ -76,16 +74,16 @@ class Stat:
 		mult: NatureMult_T = None
 	):
 		self._type = vlps.Schema(StatType)(type_)
-		self._base = vlps.Schema(vlps.All(int, vlps.Range(*self.BASE_RANGE)))(base)
-		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*LVL_RANGE))))(lvl)
+		self._base = vlps.Schema(vlps.All(int, self.BASE_RANGE.in_validator))(base)
+		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, LVL_RANGE.in_validator)))(lvl)
 		self._iv = vlps.Schema(vlps.Maybe(
 			vlps.All(
 				vlps.Any(IntRange, vlps.All(int, vlps.Coerce(IntRange))),
-				vlps.Range(*self.IV_RANGE),
+				self.IV_RANGE.in_validator,
 				IntRange.is_straight_validator
 			)
 		))(iv)
-		self._ev = vlps.Schema(vlps.Maybe(vlps.All(int, vlps.Range(*self.EV_RANGE))))(ev)
+		self._ev = vlps.Schema(vlps.Maybe(vlps.All(int, self.EV_RANGE.in_validator)))(ev)
 
 		if type_ == StatType.HP:
 			# For HP multiplier always is None (not used), but for protection
@@ -106,14 +104,14 @@ class Stat:
 				pass
 		else:
 			try:
-				self._val = vlps.Schema(vlps.All(int, vlps.Range(*self.calc_val(
+				self._val = vlps.Schema(vlps.All(int, self.calc_val(
 					self._type,
 					self._base,
 					self._iv,
 					self._ev,
 					self._lvl,
 					self._mult
-				))))(val)
+				).in_validator))(val)
 			except vlps.Error as e:
 				raise ValueError(f"{self._type} {e}")
 
@@ -190,7 +188,7 @@ class Stat:
 		elif mult is None:
 			mult = cls.MULT_RANGE
 
-		return cls._calc_val(type_, base, iv, ev, lvl, mult)
+		return cls._calc_val(type_, base, lvl, iv, ev, mult)
 
 	def get_val(
 		self,

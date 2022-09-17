@@ -4,7 +4,7 @@ from fractions import Fraction
 from frozendict import frozendict
 import json_utils
 from numbers import Number
-from typing import Union, TypeVar, Generic
+from typing import Iterable, TypeVar, Generic
 from types import UnionType, GenericAlias
 
 import voluptuous as vlps
@@ -111,19 +111,6 @@ NumRange_T = tuple[_T, _T]
 GenNumRange_T = NumRange_T | _T
 
 
-# def get_range_min(r: NumRange_T[_T]) -> _T:
-# 	return r if isinstance(r, Number) else r[0]
-#
-#
-# def get_range_max(r: NumRange_T[_T]) -> _T:
-# 	return r if isinstance(r, Number) else r[1]
-#
-#
-# def merge_ranges(r1: NumRange_T[_T], r2: NumRange_T[_T]) -> NumRange_T[_T]:
-# 	r = min(get_range_min(r1), get_range_min(r2)), max(get_range_max(r1), get_range_max(r2))
-# 	return r[0] if r[0] == r[1] else r
-
-
 class NumRange(Generic[_T]):
 
 	__slots__ = "_min", "_max"
@@ -148,9 +135,8 @@ class NumRange(Generic[_T]):
 		else:
 			raise IndexError
 
-	def __iter__(self):
-		yield self._min
-		yield self._max
+	def __iter__(self) -> range:
+		return range(self._min, self._max + 1)
 
 	def __str__(self) -> str:
 		if self._min == self._max:
@@ -345,9 +331,13 @@ class NumRange(Generic[_T]):
 		else:
 			raise NotImplementedError
 
+	@property
+	def in_validator(self) -> vlps.Range:
+		return vlps.Range(self._min, self._max)
+
 
 class FloatRange(NumRange[float]):
-	...
+	pass
 
 
 class FracRange(FloatRange, NumRange[Fraction]):
@@ -361,7 +351,7 @@ class FracRange(FloatRange, NumRange[Fraction]):
 
 
 class IntRange(FracRange, NumRange[int]):
-	...
+	pass
 
 
 IntOrRange_T = int | IntRange
@@ -371,19 +361,31 @@ IntOrFracOrRange_T = int | Fraction | FracRange
 def numerator_range(den: int, quot: IntOrRange_T) -> IntRange:
 	"""Find numerator range for given positive denominator and positive quotient."""
 	if isinstance(quot, int):
-		return IntRange(den * quot, den * (quot + 1) - 1)
+		return IntRange(
+			den * quot,
+			den * (quot + 1) - 1
+		)
 	else:
-		return IntRange(den * quot[0], den * (quot[1] + 1) - 1)
+		return IntRange(
+			den * quot.min,
+			den * (quot.max + 1) - 1
+		)
 
 
 def multiplier_range(mult: int, prod_range: IntRange) -> IntRange:
 	"""Find multiplier range for given positive multiplicand and positive product range."""
-	return IntRange((prod_range[0] + mult - 1) // mult, prod_range[1] // mult)
+	return IntRange(
+		(prod_range.min + mult - 1) // mult,
+		prod_range.max // mult
+	)
 
 
 def multiplier_range_frac(mult: Fraction, prod: IntOrRange_T) -> IntRange:
 	"""Find multiplier range for given positive fraction multiplicand and positive product."""
-	return multiplier_range(mult.numerator, numerator_range(mult.denominator, prod))
+	return multiplier_range(
+		mult.numerator,
+		numerator_range(mult.denominator, prod)
+	)
 
 
 def test_floor_div(left: int | IntRange, right: FracRange) -> NumRange[int]:
@@ -412,6 +414,8 @@ def main():
 	# print(float_r)
 	int_r = test_floor_div(17, FracRange(Fraction(6, 5), Fraction(5, 3)))
 	print(int_r)
+	s = set(int_r)
+	print(s)
 
 
 if __name__ == "__main__":
