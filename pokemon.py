@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Union, Set, Optional
 
@@ -38,7 +39,7 @@ class Sample(Species):
 
 	def __init__(
 		self,
-		spec: Species | Pokemon,
+		spec: Species_T,
 		nature: Nature = None,
 		characteristic: Characteristic = None,
 		lvl: int = None,
@@ -93,6 +94,14 @@ class Sample(Species):
 				stat.ev,
 				nature_mult
 			)
+
+	@property
+	def nature(self) -> str | None:
+		return self._nature
+
+	@property
+	def characteristic(self) -> str | None:
+		return self._characteristic
 
 	@property
 	def name(self) -> str | None:
@@ -266,6 +275,9 @@ class Pokemon(Enum):
 	})
 
 
+Species_T = Species | Pokemon
+
+
 def main():
 	lvl = 70
 
@@ -287,7 +299,8 @@ def main():
 		print(f"{st}: {sv}")
 	print()
 
-	for st, sv in rGentle.getGenStats().items():
+	genStats = rGentle.getGenStats()
+	for st, sv in genStats.items():
 		print(f"{st}: {sv}")
 
 

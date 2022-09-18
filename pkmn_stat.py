@@ -6,7 +6,8 @@ from typing import Optional
 import voluptuous as vlps
 
 from pkmn_stat_type import StatType, GenStatType
-from utils import enum_const_dict, multiplier_range_frac, IntRange, IntOrRange_T, FracRange, IntOrFracOrRange_T
+from utils import enum_const_dict, multiplier_range_frac, IntRange, IntOrRange_T, FracRange, FracOrRange_T,\
+	FloatOrRange_T
 from nature import Nature
 
 
@@ -23,11 +24,19 @@ class IVRanges(enum_const_dict(StatType, IntOrRange_T)):
 	pass
 
 
+class EVs(enum_const_dict(StatType, int)):
+	pass
+
+
 class Stats(enum_const_dict(StatType, IntOrRange_T)):
 	pass
 
 
 class GenStats(enum_const_dict(GenStatType, IntOrRange_T)):
+	pass
+
+
+class GenStatsNormalized(enum_const_dict(GenStatType, FloatOrRange_T)):
 	pass
 
 
@@ -166,7 +175,7 @@ class Stat:
 		lvl: IntOrRange_T,
 		iv: IntOrRange_T,
 		ev: IntOrRange_T,
-		mult: IntOrFracOrRange_T
+		mult: FracOrRange_T
 	) -> IntOrRange_T:
 		val = (2*base + iv + ev//4) * lvl // LVL_NORM + 5
 		if mult != cls.DEFAULT_MULT:
@@ -182,7 +191,7 @@ class Stat:
 		lvl: IntOrRange_T,
 		iv: IntOrRange_T,
 		ev: IntOrRange_T,
-		mult: Optional[IntOrFracOrRange_T]  # None for HP.
+		mult: Optional[FracOrRange_T]  # None for HP.
 	) -> IntOrRange_T:
 		if type_ == StatType.HP:
 			return cls._calc_hp_val(base, lvl, iv, ev)

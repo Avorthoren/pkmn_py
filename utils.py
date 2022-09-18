@@ -4,7 +4,7 @@ from fractions import Fraction
 from frozendict import frozendict
 import json_utils
 from numbers import Number
-from typing import Iterable, TypeVar, Generic
+from typing import Iterable, TypeVar, Generic, Self
 from types import UnionType, GenericAlias
 
 import voluptuous as vlps
@@ -107,12 +107,12 @@ def clamp(x, min_=None, max_=None):
 _T = TypeVar('_T', bound=Number)
 _T1 = TypeVar('_T1', bound=Number)
 _T2 = TypeVar('_T2', bound=Number)
-NumRange_T = tuple[_T, _T]
-GenNumRange_T = NumRange_T | _T
 
 
 class NumRange(Generic[_T]):
-
+	"""
+	TODO: take care of negative numbers (mult, div).
+	"""
 	__slots__ = "_min", "_max"
 
 	def __init__(self, min_: _T = 0, max_: _T = None):
@@ -122,6 +122,10 @@ class NumRange(Generic[_T]):
 	@property
 	def min(self) -> _T:
 		return self._min
+
+	@property
+	def mid(self) -> Number:
+		return (self._min + self._max) / 2
 
 	@property
 	def max(self) -> _T:
@@ -135,23 +139,28 @@ class NumRange(Generic[_T]):
 		else:
 			raise IndexError
 
-	def __iter__(self) -> range:
-		return range(self._min, self._max + 1)
+	def __iter__(self) -> Iterable[_T]:
+		yield from range(self._min, self._max + 1)
 
 	def __str__(self) -> str:
 		if self._min == self._max:
 			return str(self._min)
 		return f'({self._min}, {self._max})'
 
+	def __format__(self, format_spec) -> str:
+		if self._min == self._max:
+			return f'{self._min:{format_spec}}'
+		return f'({self._min:{format_spec}}, {self._max:{format_spec}})'
+
 	@property
 	def is_straight(self) -> bool:
 		return self._min <= self._max
 
-	def reverse(self) -> NumRange[_T]:
+	def reverse(self) -> Self:
 		self._min, self._max = self._max, self._min
 		return self
 
-	def straighten(self) -> NumRange[_T]:
+	def straighten(self) -> Self:
 		if not self.is_straight:
 			self.reverse()
 		return self
@@ -163,11 +172,15 @@ class NumRange(Generic[_T]):
 		return r
 
 	@staticmethod
-	def _get_min(r: NumRange[_T1] | _T2) -> _T1 | _T2:
+	def get_min(r: NumRange[_T1] | _T2) -> _T1 | _T2:
 		return r if isinstance(r, Number) else r.min
 
 	@staticmethod
-	def _get_max(r: NumRange[_T1] | _T2) -> _T1 | _T2:
+	def get_mid(r: NumRange[_T1] | _T2) -> _T1 | _T2:
+		return r if isinstance(r, Number) else r.mid
+
+	@staticmethod
+	def get_max(r: NumRange[_T1] | _T2) -> _T1 | _T2:
 		return r if isinstance(r, Number) else r.max
 
 	def __eq__(self, other: NumRange[_T1] | _T2) -> bool:
@@ -193,111 +206,111 @@ class NumRange(Generic[_T]):
 	def __ge__(self, other: _T1) -> bool:
 		return self._min >= other and self._max >= other
 
-	def __add__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __add__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._min + self._get_min(other),
-			self._max + self._get_max(other)
+			self._min + self.get_min(other),
+			self._max + self.get_max(other)
 		)
 
-	def __sub__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __sub__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._min - self._get_min(other),
-			self._max - self._get_max(other)
+			self._min - self.get_min(other),
+			self._max - self.get_max(other)
 		)
 
-	def __mul__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __mul__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._min * self._get_min(other),
-			self._max * self._get_max(other)
+			self._min * self.get_min(other),
+			self._max * self.get_max(other)
 		)
 
-	def __floordiv__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __floordiv__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._min // self._get_max(other),
-			self._max // self._get_min(other)
+			self._min // self.get_max(other),
+			self._max // self.get_min(other)
 		)
 
-	def __radd__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __radd__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._get_min(other) + self._min,
-			self._get_max(other) + self._max
+			self.get_min(other) + self._min,
+			self.get_max(other) + self._max
 		)
 
-	def __rsub__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __rsub__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._get_min(other) - self._min,
-			self._get_max(other) - self._max
+			self.get_min(other) - self._min,
+			self.get_max(other) - self._max
 		)
 
-	def __rmul__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __rmul__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._get_min(other) * self._min,
-			self._get_max(other) * self._max
+			self.get_min(other) * self._min,
+			self.get_max(other) * self._max
 		)
 
-	def __rfloordiv__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __rfloordiv__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
 		return self.__class__(
-			self._get_min(other) // self._max,
-			self._get_max(other) // self._min
+			self.get_min(other) // self._max,
+			self.get_max(other) // self._min
 		)
 
-	def __iadd__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __iadd__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
-		self._min += self._get_min(other)
-		self._max += self._get_max(other)
+		self._min += self.get_min(other)
+		self._max += self.get_max(other)
 		return self
 
-	def __isub__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __isub__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
-		self._min -= self._get_min(other)
-		self._max -= self._get_max(other)
+		self._min -= self.get_min(other)
+		self._max -= self.get_max(other)
 		return self
 
-	def __imul__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __imul__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
-		self._min *= self._get_min(other)
-		self._max *= self._get_max(other)
+		self._min *= self.get_min(other)
+		self._max *= self.get_max(other)
 		return self
 
-	def __ifloordiv__(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def __ifloordiv__(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			return NotImplemented
 
-		self._min //= self._get_max(other)
-		self._max //= self._get_min(other)
+		self._min //= self.get_max(other)
+		self._max //= self.get_min(other)
 		return self
 
-	def clamp(self, other: NumRange[_T1]) -> NumRange[_T]:
+	def clamp(self, other: NumRange[_T1]) -> Self:
 		if self._min > other.max or self._max < other.min:
 			raise ValueError(f"Could not clamp {self} to {other}")
 
@@ -305,12 +318,12 @@ class NumRange(Generic[_T]):
 		self._max = clamp(self._max, max_=other.max)
 		return self
 
-	def merge_in(self, other: NumRange[_T] | _T) -> NumRange[_T]:
+	def merge_in(self, other: Self | _T) -> Self:
 		if not isinstance(other, (self.__class__, self._min.__class__)):
 			raise NotImplementedError
 
-		self._min = min(self._min, self._get_min(other))
-		self._max = max(self._max, self._get_max(other))
+		self._min = min(self._min, self.get_min(other))
+		self._max = max(self._max, self.get_max(other))
 		return self
 
 	@classmethod
@@ -320,13 +333,13 @@ class NumRange(Generic[_T]):
 
 		if isinstance(right, left_class):
 			return left.__class__(
-				min(cls._get_min(left), cls._get_min(right)),
-				max(cls._get_max(left), cls._get_max(right))
+				min(cls.get_min(left), cls.get_min(right)),
+				max(cls.get_max(left), cls.get_max(right))
 			)
 		elif isinstance(left, right_class):
 			return right.__class__(
-				min(cls._get_min(left), cls._get_min(right)),
-				max(cls._get_max(left), cls._get_max(right))
+				min(cls.get_min(left), cls.get_min(right)),
+				max(cls.get_max(left), cls.get_max(right))
 			)
 		else:
 			raise NotImplementedError
@@ -337,10 +350,50 @@ class NumRange(Generic[_T]):
 
 
 class FloatRange(NumRange[float]):
-	pass
+	@property
+	def mid(self) -> float:
+		return (self._min + self._max) / 2
+
+	def __truediv__(
+		self,
+		other: IntOrRange_T | FracOrRange_T | FloatOrRange_T
+	) -> FracRange | FloatRange:
+		if not isinstance(other, (FloatRange, int, Fraction, float)):
+			return NotImplemented
+
+		if isinstance(other, (Fraction, FracRange)):
+			cls = FracRange
+		else:
+			cls = FloatRange
+
+		return cls(
+			self._min / self.get_max(other),
+			self._max / self.get_min(other)
+		)
+
+	def __rtruediv__(
+		self,
+		other: IntOrRange_T | FracOrRange_T | FloatOrRange_T
+	) -> FracRange | FloatRange:
+		if not isinstance(other, (FloatRange, int, Fraction, float)):
+			return NotImplemented
+
+		if isinstance(other, (Fraction, FracRange)):
+			cls = FracRange
+		else:
+			cls = FloatRange
+
+		return cls(
+			self.get_min(other) / self._max,
+			self.get_max(other) / self._min
+		)
 
 
 class FracRange(FloatRange, NumRange[Fraction]):
+	@property
+	def mid(self) -> Fraction:
+		return (self._min + self._max) / 2
+
 	@property
 	def numerator(self) -> IntRange:
 		return IntRange(self.min.numerator, self.max.numerator)
@@ -350,12 +403,15 @@ class FracRange(FloatRange, NumRange[Fraction]):
 		return IntRange(self.max.denominator, self.min.denominator)
 
 
-class IntRange(FracRange, NumRange[int]):
-	pass
+class IntRange(FracRange, NumRange[int]):  # supports numerator and denominator.
+	@property
+	def mid(self) -> float:
+		return (self._min + self._max) / 2
 
 
 IntOrRange_T = int | IntRange
-IntOrFracOrRange_T = int | Fraction | FracRange
+FracOrRange_T = Fraction | FracRange
+FloatOrRange_T = float | FloatRange
 
 
 def numerator_range(den: int, quot: IntOrRange_T) -> IntRange:
@@ -388,7 +444,7 @@ def multiplier_range_frac(mult: Fraction, prod: IntOrRange_T) -> IntRange:
 	)
 
 
-def test_floor_div(left: int | IntRange, right: FracRange) -> NumRange[int]:
+def test_floor_div(left: int | IntRange, right: FracRange) -> IntRange:
 	return left * right.numerator // right.denominator
 
 
@@ -413,9 +469,14 @@ def main():
 	# float_r = int_r - float_r
 	# print(float_r)
 	int_r = test_floor_div(17, FracRange(Fraction(6, 5), Fraction(5, 3)))
+	int_r = IntRange(5, 7)
+	int_r = int_r * 4
 	print(int_r)
 	s = set(int_r)
 	print(s)
+	# int_r = IntRange(20, 28)
+	print(int_r / IntRange(4, 5))
+
 
 
 if __name__ == "__main__":
