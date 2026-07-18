@@ -130,14 +130,18 @@ class Sample(Species):
 		characteristic: Characteristic
 	) -> NatureIVSets_T:
 		highest_stat, rem = characteristic.highest_stat, characteristic.rem
+		# Find max-min value amongst all stats (except `highest_stat`) -
+		# `highest_stat` shouldn't be lower than that.
+		all_min_val = max(min(iv_set) for stat_type, iv_set in iv_sets.items() if stat_type != highest_stat)
 		iv_sets[highest_stat] = {
 			val
 			for val in iv_sets[highest_stat]
-			if val % CharacteristicData.MOD == rem
+			if (val >= all_min_val and val % CharacteristicData.MOD == rem)
 		}
 		if not iv_sets[highest_stat]:
 			raise ValueError("Stats have impossible values")
 
+		# Find max value of `highest_stat` - no stat should be higher.
 		highest_stat_max_val = max(iv_sets[highest_stat])
 		for type_, set_ in iv_sets.items():
 			if type_ != highest_stat:
