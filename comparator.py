@@ -2,7 +2,8 @@ from collections.abc import Collection
 from copy import deepcopy
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Iterable, TypeVar, Callable, Self
+from typing import Iterable, TypeVar, Callable
+from typing_extensions import Self
 
 from characteristic import Characteristic
 from nature import Nature
@@ -44,6 +45,13 @@ class _EvenEVs:
 EVEN_EVS = _EvenEVs()
 
 
+class _NoEVs:
+	pass
+
+
+NO_EVS = _NoEVs()
+
+
 class PokemonComparator:
 	def __init__(
 		self,
@@ -72,15 +80,19 @@ class PokemonComparator:
 			self._ref_sample = ref_sample
 
 	@staticmethod
-	def _sample_evs(common_evs: EVs, sample_data: SampleSpecificData, stat_type: StatType) -> IntOrRange_T | None:
+	def _sample_evs(_, sample_data: SampleSpecificData, stat_type: StatType) -> IntOrRange_T | None:
 		return sample_data.evs[stat_type]
 
 	@staticmethod
-	def _even_evs(common_evs: EVs, sample_data: SampleSpecificData, stat_type: StatType) -> int:
+	def _no_evs(*_, **__) -> int:
+		return 0
+
+	@staticmethod
+	def _even_evs(*_, **__) -> int:
 		return Stat.EV_RANGE.max // len(StatType)
 
 	@staticmethod
-	def _common_evs(common_evs: EVs, sample_data: SampleSpecificData, stat_type: StatType) -> int:
+	def _common_evs(common_evs: EVs, _, stat_type: StatType) -> int:
 		return common_evs[stat_type]
 
 	@classmethod
@@ -89,11 +101,13 @@ class PokemonComparator:
 		spec: Species_T,
 		*samples_data: SampleSpecificData,
 		lvl: int = None,
-		evs: EVs | _EvenEVs | None = EVEN_EVS,
+		evs: EVs | _NoEVs | _EvenEVs | None = NO_EVS,
 		ref_sample_data: SampleSpecificData | int = None
 	) -> Self:
 		if evs is None:
 			evs_getter = cls._sample_evs
+		elif evs is NO_EVS:
+			evs_getter = cls._no_evs
 		elif evs is EVEN_EVS:
 			evs_getter = cls._even_evs
 		else:
@@ -193,20 +207,57 @@ class PokemonComparator:
 
 		return result, ref_stats
 
-	def pretty_print_results(self, sorted_stats: dict[int, GenStats], ref_stats: GenStats = None) -> None:
+	def pretty_print_results(
+		self,
+		sorted_stats: dict[int, GenStats],
+		ref_stats: GenStats = None,
+		mid_values: bool = False,
+		precision: int = 2  # used when ref_stats is not None
+	) -> None:
+		if not sorted_stats:
+			raise ValueError("sorted_stats should not be empty!")
+
+		# Prepare.
 		ROW_SEP = '-'
 		COL_SEP = ' | '
-		header_len = max(len(nature.name) for nature in Nature) + len(" @ 99")
-		col_len = len(f'{FloatRange(0.001, 0.002):.3f}') + 2
+		header_len = max(len(nature.name) for nature in Nature) + len(f" @ {len(sorted_stats) - 1}")
 
+		col_lens = {}
+		for stat_type in GenStatType:
+			col_len = len(stat_type.name)
+
+			if stat_type in (GenStatType.DUR, GenStatType.SPDUR):
+				# Max DURABILITY is 390600 (6 digits).
+				_val = 100_000  # do not change to 999_999, will be multiplied further.
+			else:
+				# Max ATK is 669 (3 digits).
+				_val = 100  # do not change to 999, will be multiplied further.
+
+			if mid_values:
+				col_len = max(len(str(_val)), col_len)
+			else:
+				col_len = max(len(f'{FloatRange(_val, 2 * _val)}'), col_len)
+
+			if ref_stats is not None:
+				_val = 1 + pow(10, -precision)
+				if mid_values:
+					col_len = max(len(str(_val)), col_len)
+				else:
+					col_len = max(len(f'{FloatRange(_val, 2 * _val):.{precision}f}'), col_len)
+
+			col_lens[stat_type] = col_len
+
+		fmt = '.0f' if ref_stats is None else f'.{precision}f'
+
+		# Print.
 		header = 'Stat type'.rjust(header_len)
 		print(f'{header}{COL_SEP}', end='')
 		print(COL_SEP.join(
-			stat_type.name.rjust(col_len)
+			stat_type.name.rjust(col_lens[stat_type])
 			for stat_type in GenStatType
 		))
 
-		row_len = header_len + (len(COL_SEP) + col_len) * len(GenStatType)
+		row_len = header_len + len(COL_SEP) * len(GenStatType) + sum(col_lens.values())
 		print(ROW_SEP * row_len)
 
 		for initial_pos, stats in sorted_stats.items():
@@ -214,9 +265,9 @@ class PokemonComparator:
 			header = f'{sample.nature.name} @ {initial_pos}'.rjust(header_len)
 			print(f'{header}{COL_SEP}', end='')
 			print(COL_SEP.join(
-				f'{stat_val:.3f}'.rjust(col_len)
-				for stat_val in stats.values()
-			))
+				f'{IntRange.get_mid(stat_val) if mid_values else stat_val:{fmt}}'.rjust(col_lens[stat_type])
+				for stat_type, stat_val in stats.items()
+			))  # , sum(IntRange.get_mid(stat_val) for stat_val in stats.values()))
 
 		if ref_stats is not None:
 			print(" REFERENCE ".center(row_len, ROW_SEP))
@@ -229,133 +280,129 @@ class PokemonComparator:
 				sample_nature_str = sample_nature.name
 			print(f'{sample_nature_str.rjust(header_len)}{COL_SEP}', end='')
 			print(COL_SEP.join(
-				f'{stat_val}'.rjust(col_len)
-				for stat_val in ref_stats.values()
+				f'{IntRange.get_mid(stat_val) if mid_values else stat_val:.0f}'.rjust(col_lens[stat_type])
+				for stat_type, stat_val in ref_stats.items()
 			))
 
 
-def main():
-	# lvl = 30
-	#
-	# rGentle = Sample(
-	# 	spec=Pokemon.AGGRON,
-	# 	nature=Nature.GENTLE,
-	# 	lvl=lvl,
-	# 	stats={
-	# 		StatType.HP: {"iv": IntRange(20, 21), "ev": 85},
-	# 		StatType.ATK: {"iv": 20, "ev": 85},
-	# 		StatType.DEF: {"iv": IntRange(7, 11), "ev": 85},
-	# 		StatType.SPATK: {"iv": IntRange(15, 19), "ev": 85},
-	# 		StatType.SPDEF: {"iv": IntRange(15, 18), "ev": 85},
-	# 		StatType.SPEED: {"iv": 0, "ev": 85},
-	# 	}
-	# )
-	# genStats = rGentle.getGenStats()
-	# pretty_print(genStats)
-	# print()
-	#
-	# print(PokemonComparator.simple_strategy(
-	# 	GenStatType.SPDUR,
-	# 	GenStatType.ATK,
-	# 	GenStatType.DUR,
-	# 	GenStatType.SPEED,
-	# 	range_strategy=PokemonComparator.RangeStrategy.MIN
-	# )(genStats))
+def dur_atk_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: (
+		NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.ATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPATK]),
+	)
 
+
+def dur_allatkspd_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: (
+		NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.ATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPEED])
+	)
+
+
+def dur_spatkspd_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: (
+		NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.SPATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPEED])
+	)
+
+
+def simple_sum(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: sum(
+		NumRange.get_mid(samples_stats[sample][stat_type])
+		for stat_type in GenStatType
+	)
+
+
+def allatkspd_dur_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: (
+		NumRange.get_mid(samples_stats[sample][GenStatType.ATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPEED]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR])
+	)
+
+
+def spatkspd_dur_atk_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: (
+		NumRange.get_mid(samples_stats[sample][GenStatType.SPATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPEED]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.ATK])
+	)
+
+
+def allexceptdur_dur(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: (
+		NumRange.get_mid(samples_stats[sample][GenStatType.ATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPATK])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPEED])
+		+ NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+	)
+
+
+def main():
 	comp = PokemonComparator.from_same_species(
-		Pokemon.AGGRON,
+		Pokemon.FLYGON,
+
 		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(20, 23),
-			StatType.ATK: 23,
-			StatType.DEF: IntRange(25, 26),
-			StatType.SPATK: IntRange(20, 25),
-			StatType.SPDEF: IntRange(15, 19),
-			StatType.SPEED: 14,
-		}), nature=Nature.QUIRKY),
+			StatType.HP: IntRange(28, 30),
+			StatType.ATK: IntRange(8, 10),
+			StatType.DEF: IntRange(28, 30),
+			StatType.SPATK: IntRange(13, 15),
+			StatType.SPDEF: IntRange(21, 22),
+			StatType.SPEED: IntRange(16, 18)
+		}), nature=Nature.NAUGHTY),
 		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(14, 17),
-			StatType.ATK: IntRange(14, 16),
-			StatType.DEF: 13,
-			StatType.SPATK: IntRange(3, 6),
-			StatType.SPDEF: IntRange(27, 31),
-			StatType.SPEED: IntRange(3, 6),
-		}), nature=Nature.HARDY),
+			StatType.HP: IntRange(21, 22),
+			StatType.ATK: IntRange(13, 15),
+			StatType.DEF: IntRange(18, 20),
+			StatType.SPATK: IntRange(26, 27),
+			StatType.SPDEF: IntRange(28, 30),
+			StatType.SPEED: IntRange(27, 28)
+		}), nature=Nature.BASHFUL),
 		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(7, 9),
-			StatType.ATK: 4,
-			StatType.DEF: 23,
-			StatType.SPATK: 14,
-			StatType.SPDEF: IntRange(27, 31),
-			StatType.SPEED: 9,
-		}), nature=Nature.ADAMANT),
-		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: 24,
-			StatType.ATK: 30,
-			StatType.DEF: 15,
-			StatType.SPATK: IntRange(15, 19),
-			StatType.SPDEF: IntRange(20, 23),
-			StatType.SPEED: 15,
-		}), nature=Nature.LONELY),
-		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: 25,
-			StatType.ATK: IntRange(10, 11),
-			StatType.DEF: 10,
-			StatType.SPATK: 30,
-			StatType.SPDEF: IntRange(27, 29),
-			StatType.SPEED: IntRange(21, 23),
-		}), nature=Nature.RELAXED),
-		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(20, 21),
-			StatType.ATK: 20,
-			StatType.DEF: IntRange(7, 11),
-			StatType.SPATK: IntRange(15, 19),
-			StatType.SPDEF: IntRange(15, 18),
-			StatType.SPEED: 0,
-		}), nature=Nature.GENTLE),
-		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(7, 8),
-			StatType.ATK: 14,
-			StatType.DEF: IntRange(14, 15),
-			StatType.SPATK: IntRange(10, 13),
-			StatType.SPDEF: IntRange(27, 29),
-			StatType.SPEED: IntRange(20, 21),
-		}), nature=Nature.CALM),
-		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(14, 15),
-			StatType.ATK: 3,
-			StatType.DEF: IntRange(0, 4),
-			StatType.SPATK: 3,
-			StatType.SPDEF: IntRange(20, 23),
-			StatType.SPEED: 27,
-		}), nature=Nature.JOLLY),
-		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(29, 31),
-			StatType.ATK: IntRange(2, 3),
-			StatType.DEF: 14,
-			StatType.SPATK: IntRange(20, 25),
-			StatType.SPDEF: IntRange(15, 19),
-			StatType.SPEED: 22,
-		}), nature=Nature.HASTY),
-		evs=EVs({
-			StatType.HP: 252,
-			StatType.ATK: 0,
-			StatType.DEF: 6,
-			StatType.SPATK: 0,
-			StatType.SPDEF: 252,
-			StatType.SPEED: 0
-		}),
-		ref_sample_data=4  # RELAXED
+			StatType.HP: IntRange(26, 27),
+			StatType.ATK: IntRange(16, 17),
+			StatType.DEF: IntRange(26, 27),
+			StatType.SPATK: IntRange(16, 17),
+			StatType.SPDEF: IntRange(23, 25),
+			StatType.SPEED: IntRange(11, 13)
+		}), nature=Nature.BASHFUL),
+
+		ref_sample_data=1
+		# ref_sample_data=SampleSpecificData(
+		# 	iv_ranges=IVRanges.max(),
+		# 	nature=Nature.BOLD
+		# ),
 	)
 
 	comp_result, ref_stats = comp.get_comparison(
-		PokemonComparator.simple_strategy(
-			GenStatType.SPDUR,
-			GenStatType.ATK,
-			GenStatType.DUR,
-			GenStatType.SPEED),
+		# PokemonComparator.simple_strategy(
+		# 	GenStatType.SPEED,
+		# 	GenStatType.ATK,
+		# 	GenStatType.DUR,
+		# 	GenStatType.SPDUR
+		# ),
+		# allexceptdur_dur,
+		simple_sum,
 		lvl=70
 	)
-	comp.pretty_print_results(comp_result, ref_stats)
+	comp.pretty_print_results(
+		comp_result,
+		ref_stats,
+		mid_values=True,
+		precision=2
+	)
 
 
 if __name__ == "__main__":

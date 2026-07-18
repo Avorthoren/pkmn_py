@@ -21,7 +21,26 @@ class BaseStats(enum_const_dict(StatType, int)):
 
 
 class IVRanges(enum_const_dict(StatType, IntOrRange_T)):
-	pass
+	@classmethod
+	def min(cls):
+		return cls({
+			stat_type: Stat.IV_RANGE.min
+			for stat_type in StatType
+		})
+
+	@classmethod
+	def mid(cls):
+		return cls({
+			stat_type: int(Stat.IV_RANGE.mid)
+			for stat_type in StatType
+		})
+
+	@classmethod
+	def max(cls):
+		return cls({
+			stat_type: Stat.IV_RANGE.max
+			for stat_type in StatType
+		})
 
 
 class EVs(enum_const_dict(StatType, int)):
@@ -254,23 +273,27 @@ class Stat:
 		ev: Optional[IntOrRange_T] = None,
 		mult: Optional[NatureMult_T] = None  # None for self value
 	) -> IntRange:
+		"""
+		TODO: It's not clear how is it supposed to work.
+		"""
 		if lvl is None:
 			if self._lvl is None:
 				raise ValueError("Lvl must be specified")
 			lvl = self._lvl
-
 		if val is None:
 			if self._val is None:
 				raise ValueError("Stat value must be specified")
 			val = self._val
-
 		if ev is None:
 			ev = self._ev
-
+			if ev is None:
+				ev = self.EV_RANGE
 		if mult is None:
-			if self._mult is None and self._type != StatType.HP:
-				raise ValueError("Nature multiplier must be specified")
 			mult = self._mult
+			if mult is None:
+				mult = self.MULT_RANGE
+		elif self._type == StatType.HP and mult != self.DEFAULT_MULT:
+			raise ValueError(f"{StatType.HP} can not have nature multiplier")
 
 		#     HP =  (2*base + iv + ev//4) * lvl // LVL_NORM + lvl + 10
 		# NON_HP = ((2*base + iv + ev//4) * lvl // LVL_NORM + 5) * mult

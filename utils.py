@@ -1,10 +1,12 @@
 from __future__ import annotations
 import enum
+import math
 from fractions import Fraction
 from frozendict import frozendict
 import json_utils
 from numbers import Number
-from typing import Iterable, TypeVar, Generic, Self
+from typing import Iterable, TypeVar, Generic
+from typing_extensions import Self
 from types import UnionType, GenericAlias
 
 import voluptuous as vlps
@@ -72,18 +74,30 @@ def any_value(value):
 	return value
 
 
-def enum_const_dict(enum_: enum.EnumMeta, value_type, strict: bool = True):
-	if isinstance(value_type, (GenericAlias, UnionType)):
-		if not strict:
-			raise ValueError(f"{value_type} can not be used with {strict=}")
-		value_type = any_value
-	elif strict:
-		value_type = vlps.Coerce(value_type)
+def _normalize_validator(value_type, strict):
+    if isinstance(value_type, (GenericAlias, UnionType)):
+        if not strict:
+            raise ValueError(f"{value_type} can not be used with {strict=}")
+        return any_value
 
-	return const_dict(vlps.Schema(vlps.All(
-		{enum_: value_type},
-		vlps.Length(min=len(enum_), max=len(enum_))
-	)))
+    if isinstance(value_type, type):
+        return vlps.Coerce(value_type) if strict else value_type
+
+    # Assume it's already a voluptuous validator/schema.
+    return value_type
+
+
+def enum_const_dict(enum_: enum.EnumMeta, value_type, strict: bool = True):
+    value_type = _normalize_validator(value_type, strict)
+
+    return const_dict(
+        vlps.Schema(
+            vlps.All(
+                {enum_: value_type},
+                vlps.Length(min=len(enum_), max=len(enum_)),
+            )
+        )
+    )
 
 
 def pretty_print(data):
@@ -207,7 +221,7 @@ class NumRange(Generic[_T]):
 		return self._min >= other and self._max >= other
 
 	def __add__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
@@ -216,16 +230,16 @@ class NumRange(Generic[_T]):
 		)
 
 	def __sub__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
-			self._min - self.get_min(other),
-			self._max - self.get_max(other)
+			self._min - self.get_max(other),
+			self._max - self.get_min(other)
 		)
 
 	def __mul__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
@@ -234,7 +248,7 @@ class NumRange(Generic[_T]):
 		)
 
 	def __floordiv__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
@@ -243,7 +257,7 @@ class NumRange(Generic[_T]):
 		)
 
 	def __radd__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
@@ -252,16 +266,16 @@ class NumRange(Generic[_T]):
 		)
 
 	def __rsub__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
-			self.get_min(other) - self._min,
-			self.get_max(other) - self._max
+			self.get_min(other) - self._max,
+			self.get_max(other) - self._min
 		)
 
 	def __rmul__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
@@ -270,7 +284,7 @@ class NumRange(Generic[_T]):
 		)
 
 	def __rfloordiv__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		return self.__class__(
@@ -279,7 +293,7 @@ class NumRange(Generic[_T]):
 		)
 
 	def __iadd__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		self._min += self.get_min(other)
@@ -287,15 +301,15 @@ class NumRange(Generic[_T]):
 		return self
 
 	def __isub__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
-		self._min -= self.get_min(other)
-		self._max -= self.get_max(other)
+		self._min -= self.get_max(other)
+		self._max -= self.get_min(other)
 		return self
 
 	def __imul__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		self._min *= self.get_min(other)
@@ -303,7 +317,7 @@ class NumRange(Generic[_T]):
 		return self
 
 	def __ifloordiv__(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			return NotImplemented
 
 		self._min //= self.get_max(other)
@@ -319,7 +333,7 @@ class NumRange(Generic[_T]):
 		return self
 
 	def merge_in(self, other: Self | _T) -> Self:
-		if not isinstance(other, (self.__class__, self._min.__class__)):
+		if not isinstance(other, (type(self), type(self._min))):
 			raise NotImplementedError
 
 		self._min = min(self._min, self.get_min(other))
@@ -396,11 +410,12 @@ class FracRange(FloatRange, NumRange[Fraction]):
 
 	@property
 	def numerator(self) -> IntRange:
-		return IntRange(self.min.numerator, self.max.numerator)
+		mult = math.gcd(self.min.numerator, self.max.numerator)
+		return IntRange(self.min.numerator * mult, self.max.numerator * mult)
 
 	@property
-	def denominator(self) -> IntRange:
-		return IntRange(self.max.denominator, self.min.denominator)
+	def denominator(self) -> int:
+		return math.lcm(self.max.denominator, self.min.denominator)
 
 
 class IntRange(FracRange, NumRange[int]):  # supports numerator and denominator.
@@ -436,11 +451,23 @@ def multiplier_range(mult: int, prod_range: IntRange) -> IntRange:
 	)
 
 
-def multiplier_range_frac(mult: Fraction, prod: IntOrRange_T) -> IntRange:
+def multiplier_range_frac(mult: FracOrRange_T, prod: IntOrRange_T) -> IntRange:
 	"""Find multiplier range for given positive fraction multiplicand and positive product."""
-	return multiplier_range(
-		mult.numerator,
-		numerator_range(mult.denominator, prod)
+	if isinstance(mult, Number):
+		return multiplier_range(
+			mult.numerator,
+			numerator_range(mult.denominator, prod)
+		)
+
+	return NumRange.merge_two(
+		multiplier_range(
+			mult.numerator.max,
+			numerator_range(mult.denominator, prod)
+		),
+		multiplier_range(
+			mult.numerator.min,
+			numerator_range(mult.denominator, prod)
+		)
 	)
 
 
@@ -468,14 +495,31 @@ def main():
 	# print(int_r)
 	# float_r = int_r - float_r
 	# print(float_r)
-	int_r = test_floor_div(17, FracRange(Fraction(6, 5), Fraction(5, 3)))
-	int_r = IntRange(5, 7)
-	int_r = int_r * 4
-	print(int_r)
-	s = set(int_r)
-	print(s)
-	# int_r = IntRange(20, 28)
-	print(int_r / IntRange(4, 5))
+	# int_r = test_floor_div(17, FracRange(Fraction(6, 5), Fraction(5, 3)))
+	# int_r = IntRange(5, 7)
+	# int_r = int_r * 4
+	# print(int_r)
+	# s = set(int_r)
+	# print(s)
+	# # int_r = IntRange(20, 28)
+	# print(int_r / IntRange(4, 5))
+
+	multiplicand = Fraction(7, 11)
+	prod_range = IntRange(10, 37)
+	r = multiplier_range_frac(multiplicand, prod_range)
+	print(r)
+	multiplicand = Fraction(17, 11)
+	prod_range = IntRange(10, 37)
+	r = multiplier_range_frac(multiplicand, prod_range)
+	print(r)
+
+	multiplicand = FracRange(Fraction(7, 11), Fraction(17, 11))
+	prod_range = IntRange(10, 37)
+	r = multiplier_range_frac(multiplicand, prod_range)
+	print(r)
+	for m in range(r.min - 1, r.max + 2):
+		print(f"int({multiplicand.min} * {m}) = {int(multiplicand.min * m)}")
+
 
 
 

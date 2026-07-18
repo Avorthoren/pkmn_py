@@ -274,6 +274,78 @@ class Pokemon(Enum):
 		StatType.SPEED: 50
 	})
 
+	PARASECT = Species(name="Parasect", catch_rate=75, base_stats={
+		StatType.HP: 60,
+		StatType.ATK: 95,
+		StatType.DEF: 80,
+		StatType.SPATK: 60,
+		StatType.SPDEF: 80,
+		StatType.SPEED: 30
+	})
+
+	TENTACRUEL_EK = Species(name="Tentacruel (Emerald Kaizo)", catch_rate=60, base_stats={
+		StatType.HP: 80,
+		StatType.ATK: 70,
+		StatType.DEF: 65,
+		StatType.SPATK: 100,
+		StatType.SPDEF: 120,
+		StatType.SPEED: 100
+	})
+
+	CLOYSTER_EK = Species(name="Cloyster (Emerald Kaizo)", catch_rate=60, base_stats={
+		StatType.HP: 50,
+		StatType.ATK: 95,
+		StatType.DEF: 180,
+		StatType.SPATK: 85,
+		StatType.SPDEF: 70,
+		StatType.SPEED: 70
+	})
+
+	WALREIN = Species(name="Walrein", catch_rate=45, base_stats={
+		StatType.HP: 110,
+		StatType.ATK: 80,
+		StatType.DEF: 90,
+		StatType.SPATK: 95,
+		StatType.SPDEF: 90,
+		StatType.SPEED: 65
+	})
+
+	SWELLOW_EK = Species(name="Swellow (Emerald Kaizo)", catch_rate=45, base_stats={
+		StatType.HP: 60,
+		StatType.ATK: 85,
+		StatType.DEF: 60,
+		StatType.SPATK: 75,
+		StatType.SPDEF: 50,
+		StatType.SPEED: 125
+	})
+
+	SALAMENCE = Species(name="Salamence", catch_rate=45, base_stats={
+		StatType.HP: 95,
+		StatType.ATK: 135,
+		StatType.DEF: 80,
+		StatType.SPATK: 110,
+		StatType.SPDEF: 80,
+		StatType.SPEED: 100
+	})
+
+	ARCANINE = Species(name="Arcanine", catch_rate=75, base_stats={
+		StatType.HP: 90,
+		StatType.ATK: 110,
+		StatType.DEF: 80,
+		StatType.SPATK: 100,
+		StatType.SPDEF: 80,
+		StatType.SPEED: 95
+	})
+
+	FLYGON = Species(name="Flygon", catch_rate=45, base_stats={
+		StatType.HP: 80,
+		StatType.ATK: 100,
+		StatType.DEF: 80,
+		StatType.SPATK: 80,
+		StatType.SPDEF: 80,
+		StatType.SPEED: 100
+	})
+
 
 Species_T = Species | Pokemon
 

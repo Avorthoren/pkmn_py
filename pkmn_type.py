@@ -1,5 +1,7 @@
 from fractions import Fraction
 
+import voluptuous as vlps
+
 from utils import SEnum, enum, enum_const_dict, pretty_print
 
 
@@ -125,7 +127,7 @@ _DEF_EFF_CONDENSED = _DefTypesEfficiencyCondensed({
 	Type.NONE: {}
 })
 
-# Construct effectiveness dict for each defence type.
+# Construct effectiveness dict for each defense type.
 # `DEF_EFF[dt][at]` is multiplier when `dt` is attacked by `at`.
 DEF_EFF = {}
 for dt in Type:
