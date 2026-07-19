@@ -1,6 +1,7 @@
+import operator
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Iterable, TypedDict, NoReturn, Generator
+from typing import Optional, Iterable, TypedDict, NoReturn, Generator, Callable
 
 import ezodf
 from characteristic import Characteristic
@@ -476,6 +477,163 @@ def get_samples_iv_sets(
             raise type(e)(f"Problem with sample {obs_sample['label']!r}: {e}")
 
 
+def minmax_filter_samples_iv_sets(
+    samples_iv_sets: Iterable[tuple[ObsSample, NatureIVSets_T]],
+    important_stat_types: Optional[dict[StatType, bool]] = None,
+) -> tuple[
+    list[tuple[ObsSample, NatureIVSets_T]],
+    list[str],
+    Optional[str]
+]:
+    """
+    Filter obs_samples by their IV sets.
+    Suppose we want all IVs to be as high as possible. Then if ALL maximal IVs
+    of some sample A are lower than ALL minimal IVS of some sample B - sample A
+    should be filtered out, because it's definitely worse than B.
+
+    Every stat we care about should be in `important_stat_types`. Respective
+    value should be `True` if we want that stat as high as possible.
+    Sometimes we want some IV be as low as possible (SPEED for trick-room
+    Pokémon, for example), in which case respective value should be `False`.
+
+    By default, if `None` was passed in `important_stat_types`, all stats
+    will be considered as important and needed to be high.
+
+    Returns "good" elements of `samples_iv_sets`, labels of filtered elements
+    and label of the reference sample
+    """
+    if important_stat_types is None:
+        important_stat_types = {stat_type: True for stat_type in StatType}
+
+    if not isinstance(samples_iv_sets, list):
+        # Normalize to list, consume possible iterators.
+        samples_iv_sets = list(samples_iv_sets)
+    if len(samples_iv_sets) < 2 or not important_stat_types:
+        return samples_iv_sets, [], None
+
+    # Find reference sample.
+    iv_sets_gen = enumerate(samples_iv_sets)
+    # Start with the first sample.
+    ref_i, (_, ref_iv_sets) = next(iv_sets_gen)
+    ref_ivs = dict()
+    for stat_type, asc in important_stat_types.items():
+        fetcher: Callable = min if asc else max
+        ref_ivs[stat_type] = fetcher(ref_iv_sets[stat_type])
+    # Now compare others to it - maybe better reference will be found.
+    for i, (_, iv_sets) in iv_sets_gen:
+        ivs = dict()
+        for stat_type, asc in important_stat_types.items():
+            if asc:
+                fetcher = min
+                comparator = operator.gt
+            else:
+                fetcher = max
+                comparator = operator.lt
+            iv = fetcher(iv_sets[stat_type])
+            # If reference IV is strictly greater/lower than `iv`, then `i`-th
+            # sample is definitely not good enough to be new reference.
+            if comparator(ref_ivs[stat_type], iv):
+                break
+            ivs[stat_type] = iv
+        else:
+            # We didn't `break` - it's a better sample.
+            ref_i, ref_ivs = i, ivs
+
+    # Now let's proceed with filtering.
+    good_sample_iv_sets = []
+    filtered_labels = []
+    for i, element in enumerate(samples_iv_sets):
+        obs_sample, iv_sets = element
+        if i == ref_i:
+            good_sample_iv_sets.append(element)
+            continue
+
+        is_filtered = False
+        for stat_type, asc in important_stat_types.items():
+            if asc:
+                fetcher = max
+                comparator = operator.le
+            else:
+                fetcher = min
+                comparator = operator.ge
+            iv = fetcher(iv_sets[stat_type])
+            # If reference IV is lower/greater than `iv`, then `i`-th
+            # sample could potentially be better than reference.
+            if comparator(ref_ivs[stat_type], iv):
+                break
+        else:
+            is_filtered = True
+
+        if is_filtered:
+            filtered_labels.append(obs_sample["label"])
+        else:
+            good_sample_iv_sets.append(element)
+
+    return good_sample_iv_sets, filtered_labels, samples_iv_sets[ref_i][0]["label"]
+
+
+def _test_filter() -> None:
+    important_stat_types = {
+        StatType.HP: True,
+        StatType.ATK: True,
+        StatType.SPEED: False,
+    }
+    samples = [
+        ({"label": "1"}, {  # first ref
+            StatType.HP: {10, 12, 14},
+            StatType.ATK: {10, 12, 14},
+            StatType.DEF: {10, 12, 14},
+            StatType.SPATK: {10, 12, 14},
+            StatType.SPDEF: {10, 12, 14},
+            StatType.SPEED: {20, 22, 24}
+        }),
+        ({"label": "2"}, {
+            StatType.HP: {8, 10, 12, 14},
+            StatType.ATK: {20, 22, 24},
+            StatType.DEF: {20, 22, 24},
+            StatType.SPATK: {20, 22, 24},
+            StatType.SPDEF: {20, 22, 24},
+            StatType.SPEED: {10, 12}
+        }),
+        ({"label": "3"}, {  # second and last ref
+            StatType.HP: {20},
+            StatType.ATK: {20, 22, 24},
+            StatType.DEF: {20, 22, 24},
+            StatType.SPATK: {20, 22, 24},
+            StatType.SPDEF: {20, 22, 24},
+            StatType.SPEED: {10, 12}
+        }),
+        ({"label": "4"}, {
+            StatType.HP: {10, 12, 14, 20},
+            StatType.ATK: {10, 12, 14},
+            StatType.DEF: {10, 12, 14},
+            StatType.SPATK: {10, 12, 14},
+            StatType.SPDEF: {10, 12, 14},
+            StatType.SPEED: {8}
+        }),
+        ({"label": "5"}, {
+            StatType.HP: {10, 12, 14},
+            StatType.ATK: {10, 12, 14},
+            StatType.DEF: {10, 12, 14},
+            StatType.SPATK: {10, 12, 14},
+            StatType.SPDEF: {10, 12, 14},
+            StatType.SPEED: {12, 14}
+        }),
+        ({"label": "6"}, {
+            StatType.HP: {19},
+            StatType.ATK: {19},
+            StatType.DEF: {31},
+            StatType.SPATK: {31},
+            StatType.SPDEF: {31},
+            StatType.SPEED: {13}
+        }),
+    ]
+
+    samples_iv_sets, filtered_labels, ref_label = minmax_filter_samples_iv_sets(samples, important_stat_types)
+    print("Ref sample:", ref_label)
+    print("Filtered samples:", filtered_labels)
+
+
 def pprint_sample_iv_sets(
     obs_sample: ObsSample,
     iv_sets: NatureIVSets_T,
@@ -492,14 +650,31 @@ def pprint_sample_iv_sets(
     iv_calc.pprint_iv_sets(iv_sets, color_mode)
 
 
-def main():
+def process_ods_with_filter() -> None:
     samples_iv_sets = get_samples_iv_sets(
         path='~/Documents/pkmn/samples/Shroomish initial.ods',
         sheet_name='Quick feet'
     )
+    samples_iv_sets, filtered_labels, ref_label = minmax_filter_samples_iv_sets(samples_iv_sets, {
+        StatType.HP: True,
+        StatType.ATK: True,
+        StatType.DEF: True,
+        StatType.SPDEF: True,
+    })
+
+    print("Ref sample:", ref_label)
+    print("Filtered samples:", filtered_labels)
+    print()
     for obs_sample, iv_sets in samples_iv_sets:
         pprint_sample_iv_sets(obs_sample, iv_sets, color_mode="max")
         print()
+
+
+def main():
+    ...
+    process_ods_with_filter()
+
+    # _test_filter()
 
 
 if __name__ == '__main__':
