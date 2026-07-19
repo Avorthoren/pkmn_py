@@ -19,7 +19,7 @@ def get_iv_sets(
     obs_stats: Iterable[ObsStat],
     nature: Nature = None,
     characteristic: Characteristic = None,
-    name: str = None
+    label: Optional[str] = None  # not used, just for `ObsSample` matching
 ) -> NatureIVSets_T:
     iv_sets = {
         stat_type: set(Stat.IV_RANGE)

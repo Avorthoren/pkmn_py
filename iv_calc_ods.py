@@ -1,21 +1,21 @@
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Iterable, TypedDict, NoReturn
+from typing import Optional, Iterable, TypedDict, NoReturn, Generator
 
 import ezodf
 from characteristic import Characteristic
-from iv_calc import ObsStat, get_iv_sets
+import iv_calc
 from nature import Nature
 from pkmn_stat import StatType, Stat, InputStatsData_T
-from pokemon import Species_T, Sample, Pokemon
-
+from pokemon import Species_T, Sample, Pokemon, NatureIVSets_T
 
 BLOCK_HEIGHT = 8
 
 
 class ObsSample(TypedDict):
+    label: Optional[str]
     spec: Species_T
-    obs_stats: Iterable[ObsStat]
+    obs_stats: Iterable[iv_calc.ObsStat]
     nature: Optional[Nature]
     characteristic: Optional[Characteristic]
 
@@ -163,13 +163,14 @@ def _parse_block(
         _fail(sheet, block_row, col=0, message=f"data block must occupy exactly {BLOCK_HEIGHT} rows")
 
     meta_col = 1
-    spec, nature, characteristic, header_col = _parse_meta(sheet, block_row, meta_col)
+    label, spec, nature, characteristic, header_col = _parse_meta(sheet, block_row, meta_col)
 
     stat_order, first_level_col = _parse_header(sheet, block_row, header_col)
 
     obs_stats = _parse_levels(sheet, block_row, first_level_col, stat_order)
 
     return {
+        "label": label,
         "spec": spec,
         "nature": nature,
         "characteristic": characteristic,
@@ -181,27 +182,30 @@ def _parse_meta(
     sheet: ezodf.Sheet,
     block_row: int,
     meta_col: int,
-) -> tuple[Pokemon, Nature, Characteristic, int]:
+) -> tuple[Optional[str], Pokemon, Nature, Characteristic, int]:
     """
     Parse and validate the metadata section of a block.
 
     Returns:
-        (pokemon, nature, characteristic, header_column)
+        (label, pokemon, nature, characteristic, header_column)
     """
-    merged = sheet[block_row, 0].span
+    label_cell = sheet[block_row, 0]
+    merged = label_cell.span
     if merged != (1, BLOCK_HEIGHT):
         _fail(sheet, block_row, col=0, message=f"expected a merged cell spanning 1×{BLOCK_HEIGHT}")
+    # noinspection PyStringConversionWithoutDunderMethod
+    label_value = None if label_cell.value is None else str(label_cell.value)
 
     pkmn_label_row = block_row
-    pkmn, nature_label_row = _parse_meta_node(
+    pkmn, nature_label_row = _parse_required_meta_node(
         sheet, pkmn_label_row, meta_col,
         Pokemon, expected_label="POKEMON"
     )
-    nature, characteristic_label_row = _parse_meta_node(
+    nature, characteristic_label_row = _parse_required_meta_node(
         sheet, nature_label_row, meta_col,
         Nature, expected_label="NATURE"
     )
-    characteristic, next_label_row = _parse_meta_node(
+    characteristic, next_label_row = _parse_required_meta_node(
         sheet, characteristic_label_row, meta_col,
         Characteristic, expected_label="CHARACTERISTIC"
     )
@@ -211,10 +215,10 @@ def _parse_meta(
 
     header_col = meta_col + 1
 
-    return pkmn, nature, characteristic, header_col
+    return label_value, pkmn, nature, characteristic, header_col
 
 
-def _parse_meta_node[T: Enum](
+def _parse_required_meta_node[T: Enum](
     sheet: ezodf.Sheet,
     label_row: int,
     col: int,
@@ -307,11 +311,11 @@ def _parse_levels(
     block_row: int,
     first_level_col: int,
     stat_order: list[StatType],
-) -> list[ObsStat]:
+) -> list[iv_calc.ObsStat]:
     """
     Parse all level blocks belonging to a data block.
     """
-    obs_stats: list[ObsStat] = []
+    obs_stats: list[iv_calc.ObsStat] = []
     col = first_level_col
     while col + 1 < sheet.ncols():
         left_empty = True
@@ -343,7 +347,7 @@ def _parse_level(
     block_row: int,
     first_col: int,
     stat_order: list[StatType],
-) -> ObsStat:
+) -> iv_calc.ObsStat:
     """
     Parse a single level block.
     """
@@ -427,7 +431,11 @@ def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSa
         raise OSError(f"Unable to open ODS file {path!s}") from exc
 
     if sheet_name is not None:
-        return _parse_sheet(document.sheets[sheet_name])
+        try:
+            sheet = document.sheets[sheet_name]
+        except KeyError:
+            raise KeyError(f"No sheet named {sheet_name!r} in ODS file")
+        return _parse_sheet(sheet)
 
     samples: list[ObsSample] = []
     for sheet in document.sheets.values():
@@ -436,14 +444,51 @@ def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSa
     return samples
 
 
-def main():
-    parsed = _parse_ods('~/Documents/pkmn/samples/test.ods')
+def get_samples_iv_sets(
+    path: str | Path,
+    sheet_name: Optional[str] = None
+) -> Generator[tuple[ObsSample, NatureIVSets_T]]:
+    """
+    Parse an observation workbook.
 
-    for i, obs_sample in enumerate(parsed, start=1):
-        iv_sets = get_iv_sets(**obs_sample)
-        print(f"{i}. {obs_sample['spec'].name}(nature={obs_sample['nature']}, characteristic={obs_sample['characteristic']}):")
-        for stat_type, iv_set in iv_sets.items():
-            print(f"{stat_type}: {iv_set}")
+    Args:
+        path:
+            Path to an .ods file.
+        sheet_name:
+            Specific sheet to parse. `None` for "all sheets"
+
+    Returns:
+        Parsed observation samples from all sheets with their iv sets
+
+    Raises:
+        OSError:
+            The file cannot be opened.
+
+        OdsFormatError:
+            Workbook structure is invalid.
+    """
+    parsed = _parse_ods(path, sheet_name)
+
+    for obs_sample in parsed:
+        yield obs_sample, iv_calc.get_iv_sets(**obs_sample)
+
+
+def pprint_sample_iv_sets(obs_sample: ObsSample, iv_sets: NatureIVSets_T) -> None:
+    label, name, nature, characteristic = (
+        obs_sample["label"], obs_sample['spec'].name, obs_sample["nature"], obs_sample["characteristic"]
+    )
+    if nature is not None:
+        nature = nature.name
+    if characteristic is not None:
+        characteristic = characteristic.name
+    print(f"{label}: {name}({nature=}, {characteristic=})")
+    iv_calc.pprint_iv_sets(iv_sets)
+
+
+def main():
+    samples_iv_sets = get_samples_iv_sets('~/Documents/pkmn/samples/test.ods', 'Sheet2')
+    for obs_sample, iv_sets in samples_iv_sets:
+        pprint_sample_iv_sets(obs_sample, iv_sets)
         print()
 
 
