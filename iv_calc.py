@@ -65,9 +65,9 @@ def pprint_iv_sets(iv_sets: NatureIVSets_T) -> None:
         elif mid <= Stat.IV_RANGE.max * 4 / 6:
             color = "white"
         elif mid <= Stat.IV_RANGE.max * 5 / 6:
-            color = "cyan"
-        else:
             color = "blue"
+        else:
+            color = "cyan"
 
         print(colored(f"{stat_type}: {iv_set}", color))
 

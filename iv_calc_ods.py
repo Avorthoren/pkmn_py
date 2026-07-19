@@ -400,13 +400,15 @@ def _parse_level(
     }
 
 
-def _parse_ods(path: str | Path) -> list[ObsSample]:
+def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSample]:
     """
     Parse an observation workbook.
 
     Args:
         path:
             Path to an .ods file.
+        sheet_name:
+            Specific sheet to parse. `None` for "all sheets"
 
     Returns:
         Parsed observation samples from all sheets.
@@ -424,8 +426,11 @@ def _parse_ods(path: str | Path) -> list[ObsSample]:
     except Exception as exc:
         raise OSError(f"Unable to open ODS file {path!s}") from exc
 
+    if sheet_name is not None:
+        return _parse_sheet(document.sheets[sheet_name])
+
     samples: list[ObsSample] = []
-    for sheet in document.sheets:
+    for sheet in document.sheets.values():
         samples.extend(_parse_sheet(sheet))
 
     return samples

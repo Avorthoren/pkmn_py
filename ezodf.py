@@ -40,7 +40,8 @@ class Sheet:
 
 @dataclass
 class Document:
-    sheets: list[Sheet]
+    # sheet_name: sheet_content
+    sheets: dict[str, Sheet]
 
 
 def _parse_cell_element(cell_element: ElementTree.Element) -> Cell:
@@ -128,9 +129,10 @@ def _parse_row_element(row_element: ElementTree.Element) -> list[Cell]:
     return row
 
 
-def _parse_sheet_element(table: ElementTree.Element) -> Sheet:
+def _parse_sheet_element(table: ElementTree.Element) -> tuple[str, Sheet]:
     """
     Parse a <table:table> element.
+    Returns name and content.
     """
     name = table.get(f"{{{_NS['table']}}}name")
     if not name:
@@ -160,10 +162,7 @@ def _parse_sheet_element(table: ElementTree.Element) -> Sheet:
                 for _ in range(width - len(row))
             )
 
-    return Sheet(
-        name=name,
-        _cells=rows,
-    )
+    return name, Sheet(name=name, _cells=rows)
 
 
 def opendoc(path: str | Path) -> Document:
@@ -205,10 +204,10 @@ def opendoc(path: str | Path) -> Document:
     if spreadsheet is None:
         raise ValueError("content.xml does not contain office:spreadsheet")
 
-    sheets = [
+    sheets = dict(
         _parse_sheet_element(table)
         for table in spreadsheet.findall("table:table", _NS)
-    ]
+    )
 
     return Document(sheets)
 
