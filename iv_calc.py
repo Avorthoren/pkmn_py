@@ -1,4 +1,5 @@
 import operator
+from collections.abc import Container
 from functools import reduce
 from typing import Optional, Iterable, TypedDict, Literal
 
@@ -58,7 +59,11 @@ def _mid_iv_ranker(iv_set: set[int]) -> float:
 type ColorMode = Literal["min", "mid", "max"]
 
 
-def pprint_iv_sets(iv_sets: NatureIVSets_T, color_mode: ColorMode = "mid") -> None:
+def pprint_iv_sets(
+    iv_sets: NatureIVSets_T,
+    color_mode: ColorMode = "mid",
+    important_stat_types: Optional[Container[StatType]] = None,
+) -> None:
     if color_mode == "min":
         ranker = min
     elif color_mode == "mid":
@@ -68,24 +73,30 @@ def pprint_iv_sets(iv_sets: NatureIVSets_T, color_mode: ColorMode = "mid") -> No
     else:
         raise RuntimeError(f"Unsupported {color_mode=!r}")
 
-    for stat_type, iv_set in iv_sets.items():
-        rank = ranker(iv_set)
-        if rank == Stat.IV_RANGE.max:
-            color = "green"    # highest
-        elif rank <= Stat.IV_RANGE.max / 6:
-            color = "red"      # 0
-        elif rank <= Stat.IV_RANGE.max * 2 / 6:
-            color = "yellow"   # 1
-        elif rank <= Stat.IV_RANGE.max * 3 / 6:
-            color = "magenta"  # 2
-        elif rank <= Stat.IV_RANGE.max * 4 / 6:
-            color = "white"    # 3
-        elif rank <= Stat.IV_RANGE.max * 5 / 6:
-            color = "blue"     # 4
-        else:
-            color = "cyan"     # 5
+    if important_stat_types is None:
+        important_stat_types = set(StatType)
+    # Important stats will be colored according to their IVs.
 
-        print(colored(f"{stat_type}: {iv_set}", color))
+    for stat_type, iv_set in iv_sets.items():
+        color, on_color = None, None
+        if stat_type not in important_stat_types:
+            color = "dark_grey"
+        elif len(iv_set) == 1 and next(iter(iv_set)) == Stat.IV_RANGE.max:
+            on_color = "on_green"        # exactly highest
+        elif (rank := ranker(iv_set)) == Stat.IV_RANGE.max:
+            color = "light_green"        # highest
+        elif rank <= Stat.IV_RANGE.max / 5:
+            color = "light_red"          # 0
+        elif rank <= Stat.IV_RANGE.max * 2 / 5:
+            color = "light_yellow"       # 1
+        elif rank <= Stat.IV_RANGE.max * 3 / 5:
+            color = "light_magenta"      # 2
+        elif rank <= Stat.IV_RANGE.max * 4 / 5:
+            color = "light_blue"         # 3
+        else:
+            color = "light_cyan"         # 4
+
+        print(colored(f"{stat_type}: {iv_set}", color=color, on_color=on_color))
 
 
 def main():

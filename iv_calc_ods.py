@@ -1,4 +1,5 @@
 import operator
+from collections.abc import Container
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Iterable, TypedDict, NoReturn, Generator, Callable
@@ -637,7 +638,8 @@ def _test_filter() -> None:
 def pprint_sample_iv_sets(
     obs_sample: ObsSample,
     iv_sets: NatureIVSets_T,
-    color_mode: iv_calc.ColorMode = "mid"
+    color_mode: iv_calc.ColorMode = "mid",
+    important_stat_types: Optional[Container[StatType]] = None
 ) -> None:
     label, name, nature, characteristic = (
         obs_sample["label"], obs_sample['spec'].name, obs_sample["nature"], obs_sample["characteristic"]
@@ -647,7 +649,7 @@ def pprint_sample_iv_sets(
     if characteristic is not None:
         characteristic = characteristic.name
     print(f"{label}: {name}({nature=}, {characteristic=})")
-    iv_calc.pprint_iv_sets(iv_sets, color_mode)
+    iv_calc.pprint_iv_sets(iv_sets, color_mode, important_stat_types)
 
 
 def process_ods_with_filter() -> None:
@@ -655,18 +657,19 @@ def process_ods_with_filter() -> None:
         path='~/Documents/pkmn/samples/Shroomish initial.ods',
         sheet_name='Quick feet'
     )
-    samples_iv_sets, filtered_labels, ref_label = minmax_filter_samples_iv_sets(samples_iv_sets, {
+    important_stat_types = {
         StatType.HP: True,
         StatType.ATK: True,
         StatType.DEF: True,
         StatType.SPDEF: True,
-    })
+    }
+    samples_iv_sets, filtered_labels, ref_label = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
 
     print("Ref sample:", ref_label)
     print("Filtered samples:", filtered_labels)
     print()
     for obs_sample, iv_sets in samples_iv_sets:
-        pprint_sample_iv_sets(obs_sample, iv_sets, color_mode="max")
+        pprint_sample_iv_sets(obs_sample, iv_sets, color_mode="max", important_stat_types=important_stat_types)
         print()
 
 
