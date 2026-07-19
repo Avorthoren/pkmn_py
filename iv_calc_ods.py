@@ -470,10 +470,17 @@ def get_samples_iv_sets(
     parsed = _parse_ods(path, sheet_name)
 
     for obs_sample in parsed:
-        yield obs_sample, iv_calc.get_iv_sets(**obs_sample)
+        try:
+            yield obs_sample, iv_calc.get_iv_sets(**obs_sample)
+        except Exception as e:
+            raise type(e)(f"Problem with sample {obs_sample['label']!r}: {e}")
 
 
-def pprint_sample_iv_sets(obs_sample: ObsSample, iv_sets: NatureIVSets_T) -> None:
+def pprint_sample_iv_sets(
+    obs_sample: ObsSample,
+    iv_sets: NatureIVSets_T,
+    color_mode: iv_calc.ColorMode = "mid"
+) -> None:
     label, name, nature, characteristic = (
         obs_sample["label"], obs_sample['spec'].name, obs_sample["nature"], obs_sample["characteristic"]
     )
@@ -482,13 +489,16 @@ def pprint_sample_iv_sets(obs_sample: ObsSample, iv_sets: NatureIVSets_T) -> Non
     if characteristic is not None:
         characteristic = characteristic.name
     print(f"{label}: {name}({nature=}, {characteristic=})")
-    iv_calc.pprint_iv_sets(iv_sets)
+    iv_calc.pprint_iv_sets(iv_sets, color_mode)
 
 
 def main():
-    samples_iv_sets = get_samples_iv_sets('~/Documents/pkmn/samples/test.ods', 'Sheet2')
+    samples_iv_sets = get_samples_iv_sets(
+        path='~/Documents/pkmn/samples/Shroomish initial.ods',
+        sheet_name='Quick feet'
+    )
     for obs_sample, iv_sets in samples_iv_sets:
-        pprint_sample_iv_sets(obs_sample, iv_sets)
+        pprint_sample_iv_sets(obs_sample, iv_sets, color_mode="max")
         print()
 
 

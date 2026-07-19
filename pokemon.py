@@ -354,6 +354,15 @@ class Pokemon(Enum):
 		StatType.SPEED: 100
 	})
 
+	SHROOMISH = Species(name="Flygon", catch_rate=45, base_stats={
+		StatType.HP: 60,
+		StatType.ATK: 40,
+		StatType.DEF: 60,
+		StatType.SPATK: 40,
+		StatType.SPDEF: 60,
+		StatType.SPEED: 35
+	})
+
 
 Species_T = Species | Pokemon
 

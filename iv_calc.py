@@ -1,6 +1,6 @@
 import operator
 from functools import reduce
-from typing import Optional, Iterable, TypedDict
+from typing import Optional, Iterable, TypedDict, Literal
 
 from characteristic import Characteristic
 from nature import Nature
@@ -51,23 +51,39 @@ def get_iv_sets(
     return iv_sets
 
 
-def pprint_iv_sets(iv_sets: NatureIVSets_T) -> None:
+def _mid_iv_ranker(iv_set: set[int]) -> float:
+    return sum(iv_set) / len(iv_set)
+
+
+type ColorMode = Literal["min", "mid", "max"]
+
+
+def pprint_iv_sets(iv_sets: NatureIVSets_T, color_mode: ColorMode = "mid") -> None:
+    if color_mode == "min":
+        ranker = min
+    elif color_mode == "mid":
+        ranker = _mid_iv_ranker
+    elif color_mode == "max":
+        ranker = max
+    else:
+        raise RuntimeError(f"Unsupported {color_mode=!r}")
+
     for stat_type, iv_set in iv_sets.items():
-        mid = sum(iv_set) / len(iv_set)
-        if mid == Stat.IV_RANGE.max:
-            color = "green"
-        elif mid <= Stat.IV_RANGE.max / 6:
-            color = "red"
-        elif mid <= Stat.IV_RANGE.max * 2 / 6:
-            color = "yellow"
-        elif mid <= Stat.IV_RANGE.max * 3 / 6:
-            color = "magenta"
-        elif mid <= Stat.IV_RANGE.max * 4 / 6:
-            color = "white"
-        elif mid <= Stat.IV_RANGE.max * 5 / 6:
-            color = "blue"
+        rank = ranker(iv_set)
+        if rank == Stat.IV_RANGE.max:
+            color = "green"    # highest
+        elif rank <= Stat.IV_RANGE.max / 6:
+            color = "red"      # 0
+        elif rank <= Stat.IV_RANGE.max * 2 / 6:
+            color = "yellow"   # 1
+        elif rank <= Stat.IV_RANGE.max * 3 / 6:
+            color = "magenta"  # 2
+        elif rank <= Stat.IV_RANGE.max * 4 / 6:
+            color = "white"    # 3
+        elif rank <= Stat.IV_RANGE.max * 5 / 6:
+            color = "blue"     # 4
         else:
-            color = "cyan"
+            color = "cyan"     # 5
 
         print(colored(f"{stat_type}: {iv_set}", color))
 
