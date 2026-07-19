@@ -96,7 +96,7 @@ def pprint_iv_sets(
         else:
             color = "light_cyan"         # 4
 
-        print(colored(f"{stat_type}: {iv_set}", color=color, on_color=on_color))
+        print(colored(f"{stat_type}: {sorted(iv_set)}", color=color, on_color=on_color))
 
 
 def main():

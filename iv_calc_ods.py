@@ -211,9 +211,10 @@ def _parse_meta(
         sheet, characteristic_label_row, meta_col,
         Characteristic, expected_label="CHARACTERISTIC"
     )
-    for row in range(next_label_row, block_row + BLOCK_HEIGHT):
-        if not _cell_is_empty(sheet[row, meta_col]):
-            _fail(sheet, row, meta_col, message="expected an empty cell")
+    # Other cells in the column are ignored.
+    # for row in range(next_label_row, block_row + BLOCK_HEIGHT):
+    #     if not _cell_is_empty(sheet[row, meta_col]):
+    #         _fail(sheet, row, meta_col, message="expected an empty cell")
 
     header_col = meta_col + 1
 
@@ -316,10 +317,18 @@ def _parse_levels(
 ) -> list[iv_calc.ObsStat]:
     """
     Parse all level blocks belonging to a data block.
+    Blocks with empty level value are ignored: it's convenient to add
+    next block in which one keeps track of EVs, but it's not clear, what
+    final values of stats will be, and at which level it will happen.
     """
     obs_stats: list[iv_calc.ObsStat] = []
     col = first_level_col
     while col + 1 < sheet.ncols():
+        lvl_cell = sheet[block_row, col]
+        if _cell_is_empty(lvl_cell):
+            col += 2
+            continue
+
         left_empty = True
         right_empty = True
         for row in range(block_row, block_row + BLOCK_HEIGHT):
@@ -327,15 +336,12 @@ def _parse_levels(
                 left_empty = False
             if not _cell_is_empty(sheet[row, col + 1]):
                 right_empty = False
-
         if left_empty and right_empty:
             break
-
         if left_empty != right_empty:
             _fail(sheet, block_row, col, "each level must occupy exactly two columns")
 
         obs_stats.append(_parse_level(sheet, block_row, col, stat_order))
-
         col += 2
 
     if not obs_stats:
@@ -353,10 +359,11 @@ def _parse_level(
     """
     Parse a single level block.
     """
-    if sheet[block_row, first_col].span != (2, 1):
+    lvl_cell = sheet[block_row, first_col]
+    if lvl_cell.span != (2, 1):
         _fail(sheet, block_row, first_col, "level value must be in a cell merged across two columns")
 
-    lvl = sheet[block_row, first_col].value
+    lvl = lvl_cell.value
     if not isinstance(lvl, int):
         _fail(sheet, block_row, first_col, "expected an integer level")
 
@@ -654,8 +661,8 @@ def pprint_sample_iv_sets(
 
 def process_ods_with_filter() -> None:
     samples_iv_sets = get_samples_iv_sets(
-        path='~/Documents/pkmn/samples/Shroomish initial.ods',
-        sheet_name='Quick feet'
+        path='~/Documents/pkmn/samples/Shroomish.ods',
+        sheet_name='(filtered)'
     )
     important_stat_types = {
         StatType.HP: True,
