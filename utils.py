@@ -3,12 +3,14 @@ import enum
 import math
 from fractions import Fraction
 from frozendict import frozendict
+from functools import partial
 import json_utils
 from numbers import Number
 from typing import Iterable, TypeVar, Generic
 from typing_extensions import Self
 from types import UnionType, GenericAlias
 
+import termcolor
 import voluptuous as vlps
 
 
@@ -469,6 +471,9 @@ def multiplier_range_frac(mult: FracOrRange_T, prod: IntOrRange_T) -> IntRange:
 			numerator_range(mult.denominator, prod)
 		)
 	)
+
+
+colored = partial(termcolor.colored, force_color=True)
 
 
 def test_floor_div(left: int | IntRange, right: FracRange) -> IntRange:

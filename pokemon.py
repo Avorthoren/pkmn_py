@@ -29,6 +29,10 @@ class Species:
 		self._name = vlps.Schema(str)(name)
 		self._catchRate = vlps.Schema(vlps.All(int, CATCH_RATE_RANGE.in_validator))(catch_rate)
 
+	@property
+	def name(self) -> Optional[str]:
+		return self._name
+
 
 NatureIVSets_T = Dict[StatType, Set[int]]
 IVSets_T = Dict[Nature, NatureIVSets_T]

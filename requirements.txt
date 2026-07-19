@@ -1,2 +1,4 @@
 frozendict
 voluptuous
+typing_extensions
+termcolor
