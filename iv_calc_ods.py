@@ -495,8 +495,8 @@ def minmax_filter_samples_iv_sets(
     """
     Filter obs_samples by their IV sets.
     Suppose we want all IVs to be as high as possible. Then if ALL maximal IVs
-    of some sample A are lower than ALL minimal IVS of some sample B - sample A
-    should be filtered out, because it's definitely worse than B.
+    of some sample A are not higher than ALL minimal IVs of some sample B, then
+    sample A should be filtered out, because it's can NOT be better than B.
 
     Every stat we care about should be in `important_stat_types`. Respective
     value should be `True` if we want that stat as high as possible.
@@ -507,7 +507,7 @@ def minmax_filter_samples_iv_sets(
     will be considered as important and needed to be high.
 
     Returns "good" elements of `samples_iv_sets`, labels of filtered elements
-    and together with respective labels
+    together with respective labels
     """
     if important_stat_types is None:
         important_stat_types = {stat_type: True for stat_type in StatType}
@@ -518,11 +518,11 @@ def minmax_filter_samples_iv_sets(
     if len(samples_iv_sets) < 2 or not important_stat_types:
         return iter(samples_iv_sets), []
 
-    # Let's save filtered index and reference index it was filtered by.
+    # Let's save filtered indices and reference indices they were filtered by.
     filtered_indices: dict[int, int] = dict()
     for i, (obs_sample, iv_sets) in enumerate(samples_iv_sets):
         # Check if i-th element can be filtered.
-        best_ivs = dict()
+        best_ivs: dict[StatType, int] = dict()
         for stat_type, asc in important_stat_types.items():
             fetcher: Callable = max if asc else min
             best_ivs[stat_type] = fetcher(iv_sets[stat_type])
@@ -535,6 +535,8 @@ def minmax_filter_samples_iv_sets(
                 fetcher: Callable = min if asc else max
                 worst_ref_iv = fetcher(ref_iv_sets[stat_type])
                 if best_ivs[stat_type] > worst_ref_iv:
+                    # i-th element can NOT be filtered by current reference.
+                    # Go to the next reference candidate.
                     break
             else:
                 # We didn't break. I.e. `obs_sample` can NOT be better than
