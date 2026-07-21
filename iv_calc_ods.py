@@ -489,9 +489,8 @@ def minmax_filter_samples_iv_sets(
     samples_iv_sets: Iterable[tuple[ObsSample, NatureIVSets_T]],
     important_stat_types: Optional[dict[StatType, bool]] = None,
 ) -> tuple[
-    list[tuple[ObsSample, NatureIVSets_T]],
-    list[str],
-    Optional[str]
+    Iterable[tuple[ObsSample, NatureIVSets_T]],
+    list[tuple[Optional[str], Optional[str]]]
 ]:
     """
     Filter obs_samples by their IV sets.
@@ -508,7 +507,7 @@ def minmax_filter_samples_iv_sets(
     will be considered as important and needed to be high.
 
     Returns "good" elements of `samples_iv_sets`, labels of filtered elements
-    and label of the reference sample
+    and together with respective labels
     """
     if important_stat_types is None:
         important_stat_types = {stat_type: True for stat_type in StatType}
@@ -517,67 +516,43 @@ def minmax_filter_samples_iv_sets(
         # Normalize to list, consume possible iterators.
         samples_iv_sets = list(samples_iv_sets)
     if len(samples_iv_sets) < 2 or not important_stat_types:
-        return samples_iv_sets, [], None
+        return iter(samples_iv_sets), []
 
-    # Find reference sample.
-    iv_sets_gen = enumerate(samples_iv_sets)
-    # Start with the first sample.
-    ref_i, (_, ref_iv_sets) = next(iv_sets_gen)
-    ref_ivs = dict()
-    for stat_type, asc in important_stat_types.items():
-        fetcher: Callable = min if asc else max
-        ref_ivs[stat_type] = fetcher(ref_iv_sets[stat_type])
-    # Now compare others to it - maybe better reference will be found.
-    for i, (_, iv_sets) in iv_sets_gen:
-        ivs = dict()
+    # Let's save filtered index and reference index it was filtered by.
+    filtered_indices: dict[int, int] = dict()
+    for i, (obs_sample, iv_sets) in enumerate(samples_iv_sets):
+        # Check if i-th element can be filtered.
+        best_ivs = dict()
         for stat_type, asc in important_stat_types.items():
-            if asc:
-                fetcher = min
-                comparator = operator.gt
+            fetcher: Callable = max if asc else min
+            best_ivs[stat_type] = fetcher(iv_sets[stat_type])
+
+        for ref_i, (ref_obs_sample, ref_iv_sets) in enumerate(samples_iv_sets):
+            if i == ref_i:
+                continue
+
+            for stat_type, asc in important_stat_types.items():
+                fetcher: Callable = min if asc else max
+                worst_ref_iv = fetcher(ref_iv_sets[stat_type])
+                if best_ivs[stat_type] > worst_ref_iv:
+                    break
             else:
-                fetcher = max
-                comparator = operator.lt
-            iv = fetcher(iv_sets[stat_type])
-            # If reference IV is strictly greater/lower than `iv`, then `i`-th
-            # sample is definitely not good enough to be new reference.
-            if comparator(ref_ivs[stat_type], iv):
+                # We didn't break. I.e. `obs_sample` can NOT be better than
+                # `ref_obs_sample` and should be filtered out.
+                filtered_indices[i] = ref_i
                 break
-            ivs[stat_type] = iv
-        else:
-            # We didn't `break` - it's a better sample.
-            ref_i, ref_ivs = i, ivs
 
-    # Now let's proceed with filtering.
-    good_sample_iv_sets = []
-    filtered_labels = []
-    for i, element in enumerate(samples_iv_sets):
-        obs_sample, iv_sets = element
-        if i == ref_i:
-            good_sample_iv_sets.append(element)
-            continue
+    good_sample_iv_sets = (
+        element
+        for (i, element) in enumerate(samples_iv_sets)
+        if (i not in filtered_indices)
+    )
+    filtered_labels = list(
+        (samples_iv_sets[i][0]['label'], samples_iv_sets[ref_i][0]['label'])
+        for (i, ref_i) in filtered_indices.items()
+    )
 
-        is_filtered = False
-        for stat_type, asc in important_stat_types.items():
-            if asc:
-                fetcher = max
-                comparator = operator.le
-            else:
-                fetcher = min
-                comparator = operator.ge
-            iv = fetcher(iv_sets[stat_type])
-            # If reference IV is lower/greater than `iv`, then `i`-th
-            # sample could potentially be better than reference.
-            if comparator(ref_ivs[stat_type], iv):
-                break
-        else:
-            is_filtered = True
-
-        if is_filtered:
-            filtered_labels.append(obs_sample["label"])
-        else:
-            good_sample_iv_sets.append(element)
-
-    return good_sample_iv_sets, filtered_labels, samples_iv_sets[ref_i][0]["label"]
+    return good_sample_iv_sets, filtered_labels
 
 
 def _test_filter() -> None:
@@ -670,10 +645,12 @@ def process_ods_with_filter() -> None:
         StatType.DEF: True,
         StatType.SPDEF: True,
     }
-    samples_iv_sets, filtered_labels, ref_label = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
+    samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
 
-    print("Ref sample:", ref_label)
-    print("Filtered samples:", filtered_labels)
+    if filtered_labels:
+        print("Filtered samples:")
+        for label, ref_label in filtered_labels:
+            print(f"{label} ≤ {ref_label}")
     print()
     for obs_sample, iv_sets in samples_iv_sets:
         pprint_sample_iv_sets(obs_sample, iv_sets, color_mode="max", important_stat_types=important_stat_types)
