@@ -27,7 +27,7 @@ def get_iv_sets(
         for stat_type in StatType
     }
 
-    for obs_stats_sample in obs_stats:
+    for i, obs_stats_sample in enumerate(obs_stats, start=1):
         sample = Sample(
             spec=spec,
             lvl=obs_stats_sample["lvl"],
@@ -48,6 +48,11 @@ def get_iv_sets(
         # And finally - intersect with current state of sets:
         for stat_type in StatType:
             iv_sets[stat_type] &= sample_merged_iv_sets[stat_type]
+            if not iv_sets[stat_type]:
+                raise RuntimeError(
+                    f"{stat_type.name} stats in first {i} blocks are impossible."
+                    f" Consider double checking stats on LVL {obs_stats_sample['lvl']}"
+                )
 
     return iv_sets
 
@@ -84,6 +89,7 @@ def pprint_iv_sets(
         elif len(iv_set) == 1 and next(iter(iv_set)) == Stat.IV_RANGE.max:
             on_color = "on_green"        # exactly highest
         elif (rank := ranker(iv_set)) == Stat.IV_RANGE.max:
+            # It can appear only for `color_mode='max'`.
             color = "light_green"        # highest
         elif rank <= Stat.IV_RANGE.max / 5:
             color = "light_red"          # 0

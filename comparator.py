@@ -1,3 +1,4 @@
+import math
 from collections.abc import Collection
 from copy import deepcopy
 from dataclasses import dataclass
@@ -294,6 +295,17 @@ def dur_atk_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strate
 	)
 
 
+def geomdur_atk_spd_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: (
+		math.sqrt(
+			NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+			* NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR])
+		),
+		NumRange.get_mid(samples_stats[sample][GenStatType.ATK]),
+		NumRange.get_mid(samples_stats[sample][GenStatType.SPEED]),
+	)
+
+
 def dur_allatkspd_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
 	return lambda sample: (
 		NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
@@ -352,34 +364,58 @@ def allexceptdur_dur(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strate
 
 def main():
 	comp = PokemonComparator.from_same_species(
-		Pokemon.FLYGON,
+		Pokemon.BRELOOM,
 
 		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(28, 30),
-			StatType.ATK: IntRange(8, 10),
-			StatType.DEF: IntRange(28, 30),
-			StatType.SPATK: IntRange(13, 15),
-			StatType.SPDEF: IntRange(21, 22),
-			StatType.SPEED: IntRange(16, 18)
-		}), nature=Nature.NAUGHTY),
+			StatType.HP: IntRange(30, 31),
+			StatType.ATK: IntRange(6, 7),
+			StatType.DEF: IntRange(31, 31),
+			StatType.SPATK: IntRange(2, 2),
+			StatType.SPDEF: IntRange(30, 31),
+			StatType.SPEED: IntRange(13, 14)
+		}), nature=Nature.ADAMANT),
 		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(21, 22),
-			StatType.ATK: IntRange(13, 15),
-			StatType.DEF: IntRange(18, 20),
-			StatType.SPATK: IntRange(26, 27),
-			StatType.SPDEF: IntRange(28, 30),
-			StatType.SPEED: IntRange(27, 28)
-		}), nature=Nature.BASHFUL),
+			StatType.HP: IntRange(28, 29),
+			StatType.ATK: IntRange(31, 31),
+			StatType.DEF: IntRange(15, 16),
+			StatType.SPATK: IntRange(16, 19),
+			StatType.SPDEF: IntRange(20, 20),
+			StatType.SPEED: IntRange(11, 11)
+		}), nature=Nature.ADAMANT),
 		SampleSpecificData(iv_ranges=IVRanges({
-			StatType.HP: IntRange(26, 27),
-			StatType.ATK: IntRange(16, 17),
-			StatType.DEF: IntRange(26, 27),
-			StatType.SPATK: IntRange(16, 17),
-			StatType.SPDEF: IntRange(23, 25),
-			StatType.SPEED: IntRange(11, 13)
-		}), nature=Nature.BASHFUL),
+			StatType.HP: IntRange(25, 25),
+			StatType.ATK: IntRange(30, 31),
+			StatType.DEF: IntRange(3, 3),
+			StatType.SPATK: IntRange(30, 31),
+			StatType.SPDEF: IntRange(31, 31),
+			StatType.SPEED: IntRange(30, 31)
+		}), nature=Nature.ADAMANT),
+		SampleSpecificData(iv_ranges=IVRanges({
+			StatType.HP: IntRange(31, 31),
+			StatType.ATK: IntRange(7, 7),
+			StatType.DEF: IntRange(28, 29),
+			StatType.SPATK: IntRange(16, 19),
+			StatType.SPDEF: IntRange(20, 20),
+			StatType.SPEED: IntRange(3, 4)
+		}), nature=Nature.ADAMANT),
+		SampleSpecificData(iv_ranges=IVRanges({
+			StatType.HP: IntRange(19, 19),
+			StatType.ATK: IntRange(31, 31),
+			StatType.DEF: IntRange(30, 31),
+			StatType.SPATK: IntRange(3, 4),
+			StatType.SPDEF: IntRange(23, 23),
+			StatType.SPEED: IntRange(17, 20)
+		}), nature=Nature.ADAMANT),
+		SampleSpecificData(iv_ranges=IVRanges({
+			StatType.HP: IntRange(23, 24),
+			StatType.ATK: IntRange(26, 28),
+			StatType.DEF: IntRange(9, 9),
+			StatType.SPATK: IntRange(31, 31),
+			StatType.SPDEF: IntRange(24, 24),
+			StatType.SPEED: IntRange(14, 14)
+		}), nature=Nature.ADAMANT),
 
-		ref_sample_data=1
+		ref_sample_data=0
 		# ref_sample_data=SampleSpecificData(
 		# 	iv_ranges=IVRanges.max(),
 		# 	nature=Nature.BOLD
@@ -394,8 +430,8 @@ def main():
 		# 	GenStatType.SPDUR
 		# ),
 		# allexceptdur_dur,
-		simple_sum,
-		lvl=70
+		geomdur_atk_spd_strategy,
+		lvl=80
 	)
 	comp.pretty_print_results(
 		comp_result,
