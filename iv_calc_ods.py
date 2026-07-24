@@ -721,7 +721,7 @@ def pprint_sample_iv_sets(
     iv_calc.pprint_iv_sets(iv_sets, color_mode, important_stat_types, print_only_important)
 
 
-def process_ods_with_filter() -> None:
+def process_ods_with_filter(minmax_filter: bool = True) -> None:
     samples_iv_sets = get_samples_iv_sets(
         path='~/Documents/pkmn/samples/Aron.ods',
         sheet_name='Initial',
@@ -735,13 +735,15 @@ def process_ods_with_filter() -> None:
         StatType.SPDEF: True,
         StatType.SPEED: True
     }
-    samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
 
-    if filtered_labels:
-        print("Filtered samples:")
-        for label, ref_label in filtered_labels:
-            print(f"{label} ≤ {ref_label}")
-    print()
+    if minmax_filter:
+        samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
+        if filtered_labels:
+            print("Filtered samples:")
+            for label, ref_label in filtered_labels:
+                print(f"{label} ≤ {ref_label}")
+        print()
+
     for obs_sample, iv_sets in samples_iv_sets:
         pprint_sample_iv_sets(obs_sample, iv_sets, color_mode="max", important_stat_types=important_stat_types)
         print()
@@ -749,7 +751,7 @@ def process_ods_with_filter() -> None:
 
 def main():
     ...
-    process_ods_with_filter()
+    process_ods_with_filter(minmax_filter=True)
 
     # _test_filter()
 
