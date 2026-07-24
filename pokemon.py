@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from copy import copy
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Union, Set, Optional
@@ -44,11 +46,11 @@ class Sample(Species):
 	def __init__(
 		self,
 		spec: Species_T,
-		nature: Nature = None,
-		characteristic: Characteristic = None,
-		lvl: int = None,
+		nature: Optional[Nature] = None,
+		characteristic: Optional[Characteristic] = None,
+		lvl: Optional[int] = None,
 		stats: Optional[StatsData | InputStatsData_T] = None,
-		name: str = None
+		name: Optional[str] = None
 	):
 		spec = vlps.Schema(vlps.Any(Species, Pokemon))(spec)
 		if isinstance(spec, Pokemon):
@@ -100,6 +102,10 @@ class Sample(Species):
 			)
 
 	@property
+	def lvl(self) -> Optional[int]:
+		return self._lvl
+
+	@property
 	def nature(self) -> str | None:
 		return self._nature
 
@@ -111,14 +117,17 @@ class Sample(Species):
 	def name(self) -> str | None:
 		return self._name
 
-	def getStats(self, lvl: int = None) -> Stats:
+	def get_stat_copy(self, stat_type: StatType) -> Stat:
+		return copy(self._stats[stat_type])
+
+	def get_stats_values(self, lvl: Optional[int] = None) -> Stats:
 		return Stats({
 			statType: stat.get_val(lvl)
 			for statType, stat in self._stats.items()
 		})
 
-	def getGenStats(self, lvl: int = None) -> GenStats:
-		statValues = self.getStats(lvl)
+	def get_gen_stats_values(self, lvl: Optional[int] = None) -> GenStats:
+		statValues = self.get_stats_values(lvl)
 
 		return GenStats({
 			GenStatType.ATK: statValues[StatType.ATK],
@@ -372,6 +381,24 @@ class Pokemon(Enum):
 		StatType.SPEED: 70
 	})
 
+	ARON = Species(name="Aron", catch_rate=180, base_stats={
+		StatType.HP: 50,
+		StatType.ATK: 70,
+		StatType.DEF: 100,
+		StatType.SPATK: 40,
+		StatType.SPDEF: 40,
+		StatType.SPEED: 30
+	})
+
+	MEGA_AGGRON = Species(name="Mega Aggron", catch_rate=45, base_stats={
+		StatType.HP: 70,
+		StatType.ATK: 140,
+		StatType.DEF: 230,
+		StatType.SPATK: 60,
+		StatType.SPDEF: 80,
+		StatType.SPEED: 50
+	})
+
 
 Species_T = Species | Pokemon
 
@@ -393,11 +420,11 @@ def main():
 		}
 	)
 
-	for st, sv in rGentle.getStats().items():
+	for st, sv in rGentle.get_stats_values().items():
 		print(f"{st}: {sv}")
 	print()
 
-	genStats = rGentle.getGenStats()
+	genStats = rGentle.get_gen_stats_values()
 	for st, sv in genStats.items():
 		print(f"{st}: {sv}")
 

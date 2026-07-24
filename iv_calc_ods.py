@@ -7,6 +7,7 @@ from typing import Optional, Iterable, TypedDict, NoReturn, Generator, Callable
 import ezodf
 from characteristic import Characteristic
 import iv_calc
+from iv_calc import CalcedIVSets_T
 from nature import Nature
 from pkmn_stat import StatType, Stat, InputStatsData_T
 from pokemon import Species_T, Sample, Pokemon, NatureIVSets_T
@@ -417,6 +418,80 @@ def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSa
     """
     Parse an observation workbook.
 
+    The workbook is an OpenDocument Spreadsheet (.ods) consisting of one or more
+    worksheets. Every worksheet contains zero or more independent data blocks.
+
+    A data block:
+
+    * always starts in the first column of a worksheet;
+    * occupies exactly 8 rows;
+    * may be immediately followed by another data block or separated from it
+      by any number of completely empty rows;
+    * describes one Pokémon together with observations made at one
+      or more levels.
+
+    Block layout
+    ============
+
+    The first column should have all 8 rows merged into one cell and contain
+    human-readable label. It can be empty.
+
+    The second ("meta") column contains:
+        row 1:  "POKEMON"
+        row 2:  Pokémon name (`Pokemon` enum)
+        row 3:  "NATURE"
+        row 4:  Nature (`Nature` enum)
+        row 5:  "CHARACTERISTIC"
+        row 6:  Characteristic (`Characteristic` enum)
+        row 7:  ignored
+        row 8:  ignored
+
+    The third ("header") column contains:
+        row 1:  LEVEL or LVL (case-insensitive, optional trailing ':')
+        row 2:  empty
+        rows 3-8: all `StatType names`, each appearing exactly once
+                  in arbitrary order.
+
+    Every following pair of columns represents one level data.
+
+    Level block
+    ===========
+
+    The first row contains the level value in a cell merged across both columns.
+    If the level cell is empty, the whole level block is ignored. This allows
+    preparing future observations before the final level or TOTAL stats are known.
+
+    The second row contains the headers:
+        TOTAL    EV
+    or
+        EV       TOTAL
+    The order is arbitrary.
+
+    Rows 3-8 contain values for the stat whose name is given in the header column.
+    TOTAL values are mandatory integers.
+    EV values are integers; an empty EV cell is treated as 0.
+
+    Example
+    =======
+
+    +==========+================+=======+=======+=======+=======+=======+=======+=======+
+    |          | POKEMON        | LEVEL |       5       |               |       7       |
+    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
+    |          | PIKACHU        |       | TOTAL |  EV   | TOTAL |  EV   | TOTAL |  EV   |
+    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
+    |          | NATURE         | HP    |  35   |       |  37   |       |  39   |   4   |
+    + label    +----------------+-------+-------+-------+-------+-------+-------+-------+
+    | merged   | JOLLY          | ATK   |  20   |       |  23   |       |  26   |   0   |
+    | over     +----------------+-------+-------+-------+-------+-------+-------+-------+
+    | all      | CHARACTERISTIC | DEF   |  11   |       |  12   |       |  13   |       |
+    + rows     +----------------+-------+-------+-------+-------+-------+-------+-------+
+    |          | LIKES_TO_RUN   | SPATK |  14   |       |  16   |       |  18   |       |
+    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
+    |          | ignored        | SPDEF |  10   |       |  11   |       |  12   |       |
+    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
+    |          | ignored        | SPEED |  18   |       |  21   |       |  24   |  20   |
+    +----------+----------------+-------+-------+-------+-------+-------+-------+-------+
+
     Args:
         path:
             Path to an .ods file.
@@ -456,7 +531,7 @@ def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSa
 def get_samples_iv_sets(
     path: str | Path,
     sheet_name: Optional[str] = None
-) -> Generator[tuple[ObsSample, NatureIVSets_T]]:
+) -> Generator[tuple[ObsSample, iv_calc.CalcedIVSets_T]]:
     """
     Parse an observation workbook.
 
@@ -486,10 +561,10 @@ def get_samples_iv_sets(
 
 
 def minmax_filter_samples_iv_sets(
-    samples_iv_sets: Iterable[tuple[ObsSample, NatureIVSets_T]],
+    samples_iv_sets: Iterable[tuple[ObsSample, CalcedIVSets_T]],
     important_stat_types: Optional[dict[StatType, bool]] = None,
 ) -> tuple[
-    Iterable[tuple[ObsSample, NatureIVSets_T]],
+    Iterable[tuple[ObsSample, CalcedIVSets_T]],
     list[tuple[Optional[str], Optional[str]]]
 ]:
     """
@@ -520,20 +595,20 @@ def minmax_filter_samples_iv_sets(
 
     # Let's save filtered indices and reference indices they were filtered by.
     filtered_indices: dict[int, int] = dict()
-    for i, (obs_sample, iv_sets) in enumerate(samples_iv_sets):
+    for i, (obs_sample, calced_iv_sets) in enumerate(samples_iv_sets):
         # Check if i-th element can be filtered.
         best_ivs: dict[StatType, int] = dict()
         for stat_type, asc in important_stat_types.items():
             fetcher: Callable = max if asc else min
-            best_ivs[stat_type] = fetcher(iv_sets[stat_type])
+            best_ivs[stat_type] = fetcher(calced_iv_sets[stat_type].values)
 
-        for ref_i, (ref_obs_sample, ref_iv_sets) in enumerate(samples_iv_sets):
+        for ref_i, (ref_obs_sample, ref_calced_iv_sets) in enumerate(samples_iv_sets):
             if i == ref_i:
                 continue
 
             for stat_type, asc in important_stat_types.items():
                 fetcher: Callable = min if asc else max
-                worst_ref_iv = fetcher(ref_iv_sets[stat_type])
+                worst_ref_iv = fetcher(ref_calced_iv_sets[stat_type].values)
                 if best_ivs[stat_type] > worst_ref_iv:
                     # i-th element can NOT be filtered by current reference.
                     # Go to the next reference candidate.
@@ -614,14 +689,13 @@ def _test_filter() -> None:
         }),
     ]
 
-    samples_iv_sets, filtered_labels, ref_label = minmax_filter_samples_iv_sets(samples, important_stat_types)
-    print("Ref sample:", ref_label)
+    samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples, important_stat_types)
     print("Filtered samples:", filtered_labels)
 
 
 def pprint_sample_iv_sets(
     obs_sample: ObsSample,
-    iv_sets: NatureIVSets_T,
+    iv_sets: CalcedIVSets_T,
     color_mode: iv_calc.ColorMode = "mid",
     important_stat_types: Optional[Container[StatType]] = None
 ) -> None:
@@ -638,14 +712,15 @@ def pprint_sample_iv_sets(
 
 def process_ods_with_filter() -> None:
     samples_iv_sets = get_samples_iv_sets(
-        path='~/Documents/pkmn/samples/Shroomish.ods',
-        sheet_name='(filtered)'
+        path='~/Documents/pkmn/samples/Aron.ods',
+        sheet_name='Initial'
     )
     important_stat_types = {
         StatType.HP: True,
         StatType.ATK: True,
         StatType.DEF: True,
         StatType.SPDEF: True,
+        StatType.SPEED: True
     }
     samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
 

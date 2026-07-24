@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from copy import copy
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Optional
@@ -156,9 +158,10 @@ class Stat:
 				self._val = self.get_val()
 			except ValueError:
 				pass
+			self._val: Optional[IntOrRange_T]
 		else:
 			try:
-				self._val = vlps.Schema(vlps.All(int, self.calc_val(
+				self._val: IntOrRange_T = vlps.Schema(vlps.All(int, self.calc_val(
 					self._type,
 					self._base,
 					self._iv,
@@ -176,6 +179,26 @@ class Stat:
 	@property
 	def base(self) -> int:
 		return self._base
+
+	@property
+	def lvl(self) -> Optional[int]:
+		return self._lvl
+
+	@property
+	def val(self) -> Optional[IntOrRange_T]:
+		return self._val
+
+	@property
+	def iv(self) -> Optional[IntOrRange_T]:
+		return self._iv
+
+	@property
+	def ev(self) -> Optional[int]:
+		return self._ev
+
+	@property
+	def mult(self) -> Optional[NatureMult_T]:
+		return self._mult
 
 	@classmethod
 	def _calc_hp_val(

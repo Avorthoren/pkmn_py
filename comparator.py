@@ -191,11 +191,11 @@ class PokemonComparator:
 		return _simple_strategy
 
 	def get_comparison(self, strategy: Strategy_T, lvl: int = None) -> Comparison_T:
-		samples_stats = {sample: sample.getGenStats(lvl) for sample in self._samples}
+		samples_stats = {sample: sample.get_gen_stats_values(lvl) for sample in self._samples}
 
 		ref_stats = None
 		if self._ref_sample is not None:
-			ref_stats = self._ref_sample.getGenStats(lvl)
+			ref_stats = self._ref_sample.get_gen_stats_values(lvl)
 			for sample, stats in samples_stats.items():
 				samples_stats[sample] = self.normalized(stats, ref_stats)
 
