@@ -167,6 +167,7 @@ def pprint_iv_sets(
     iv_sets: CalcedIVSets_T,
     color_mode: ColorMode = "mid",
     important_stat_types: Optional[Container[StatType]] = None,
+    print_only_important: bool = False,
 ) -> None:
     if color_mode == "min":
         ranker = min
@@ -185,6 +186,9 @@ def pprint_iv_sets(
     max_iv_set_len = max(len(str(calced_iv_set.values)) for calced_iv_set in iv_sets.values())
 
     for stat_type, calced_iv_set in iv_sets.items():
+        if stat_type not in important_stat_types and print_only_important:
+            continue
+
         iv_set = calced_iv_set.values
         suggestion = calced_iv_set.suggestion
         update_lvl, delta_ev = suggestion.update_lvl, suggestion.delta_ev

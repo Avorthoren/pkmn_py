@@ -530,7 +530,9 @@ def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSa
 
 def get_samples_iv_sets(
     path: str | Path,
-    sheet_name: Optional[str] = None
+    sheet_name: Optional[str] = None,
+    skip: int = 0,
+    limit: Optional[int] = None,
 ) -> Generator[tuple[ObsSample, iv_calc.CalcedIVSets_T]]:
     """
     Parse an observation workbook.
@@ -540,6 +542,10 @@ def get_samples_iv_sets(
             Path to an .ods file.
         sheet_name:
             Specific sheet to parse. `None` for "all sheets"
+        skip:
+            Number of first records to skip
+        limit:
+            Max number of records to return
 
     Returns:
         Parsed observation samples from all sheets with their iv sets
@@ -553,7 +559,11 @@ def get_samples_iv_sets(
     """
     parsed = _parse_ods(path, sheet_name)
 
-    for obs_sample in parsed:
+    if limit is None:
+        limit = len(parsed)
+
+    for i in range(skip, min(skip + limit, len(parsed))):
+        obs_sample = parsed[i]
         try:
             yield obs_sample, iv_calc.get_iv_sets(**obs_sample)
         except Exception as e:
@@ -697,7 +707,8 @@ def pprint_sample_iv_sets(
     obs_sample: ObsSample,
     iv_sets: CalcedIVSets_T,
     color_mode: iv_calc.ColorMode = "mid",
-    important_stat_types: Optional[Container[StatType]] = None
+    important_stat_types: Optional[Container[StatType]] = None,
+    print_only_important: bool = True,
 ) -> None:
     label, name, nature, characteristic = (
         obs_sample["label"], obs_sample['spec'].name, obs_sample["nature"], obs_sample["characteristic"]
@@ -707,13 +718,15 @@ def pprint_sample_iv_sets(
     if characteristic is not None:
         characteristic = characteristic.name
     print(f"{label}: {name}({nature=}, {characteristic=})")
-    iv_calc.pprint_iv_sets(iv_sets, color_mode, important_stat_types)
+    iv_calc.pprint_iv_sets(iv_sets, color_mode, important_stat_types, print_only_important)
 
 
 def process_ods_with_filter() -> None:
     samples_iv_sets = get_samples_iv_sets(
         path='~/Documents/pkmn/samples/Aron.ods',
-        sheet_name='Initial'
+        sheet_name='Initial',
+        skip=5,
+        limit=5
     )
     important_stat_types = {
         StatType.HP: True,
