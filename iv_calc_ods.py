@@ -613,7 +613,10 @@ def minmax_filter_samples_iv_sets(
             best_ivs[stat_type] = fetcher(calced_iv_sets[stat_type].values)
 
         for ref_i, (ref_obs_sample, ref_calced_iv_sets) in enumerate(samples_iv_sets):
-            if i == ref_i:
+            if i == ref_i or ref_i in filtered_indices:
+                # i-th can't be filtered by itself or ref_i-th sample, if
+                # ref_i-th sample was already filtered out by i-th.
+                # I.e. no cycles in filtering graph, otherwise we'll lose data.
                 continue
 
             for stat_type, asc in important_stat_types.items():
