@@ -19,7 +19,7 @@ class Species:
 	def __init__(
 		self,
 		base_stats: BaseStats | Dict[StatType, int],
-		name: str = None,
+		name: str,
 		catch_rate: int = None
 	):
 		if not isinstance(base_stats, BaseStats):
@@ -50,7 +50,7 @@ class Sample(Species):
 		characteristic: Optional[Characteristic] = None,
 		lvl: Optional[int] = None,
 		stats: Optional[StatsData | InputStatsData_T] = None,
-		name: Optional[str] = None
+		nickname: Optional[str] = None
 	):
 		spec = vlps.Schema(vlps.Any(Species, Pokemon))(spec)
 		if isinstance(spec, Pokemon):
@@ -61,7 +61,7 @@ class Sample(Species):
 		self._nature = vlps.Schema(vlps.Maybe(Nature))(nature)
 		self._characteristic = vlps.Schema(vlps.Maybe(Characteristic))(characteristic)
 		self._lvl = vlps.Schema(vlps.Maybe(vlps.All(int, LVL_RANGE.in_validator)))(lvl)
-		self._name = name
+		self._nickname = nickname
 
 		if stats is None:
 			stats = StatsData({
@@ -114,8 +114,12 @@ class Sample(Species):
 		return self._characteristic
 
 	@property
-	def name(self) -> str | None:
+	def name(self) -> str:
 		return self._name
+
+	@property
+	def nickname(self) -> str | None:
+		return self._nickname
 
 	def get_stat_copy(self, stat_type: StatType) -> Stat:
 		return copy(self._stats[stat_type])

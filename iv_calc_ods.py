@@ -724,6 +724,12 @@ def pprint_sample_iv_sets(
     iv_calc.pprint_iv_sets(iv_sets, color_mode, important_stat_types, print_only_important)
 
 
+def pprint_filtered_labels(filtered_labels: list[tuple[Optional[str], Optional[str]]]) -> None:
+    print("Filtered samples:")
+    for label, ref_label in filtered_labels:
+        print(f"{label} ≤ {ref_label}")
+
+
 def process_ods_with_filter(
     path: Path | str,
     sheet_name: Optional[str] = None,
@@ -739,9 +745,7 @@ def process_ods_with_filter(
     if minmax_filter:
         samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
         if filtered_labels:
-            print("Filtered samples:")
-            for label, ref_label in filtered_labels:
-                print(f"{label} ≤ {ref_label}")
+            pprint_filtered_labels(filtered_labels)
         print()
 
     for obs_sample, iv_sets in samples_iv_sets:

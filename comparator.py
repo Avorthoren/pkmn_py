@@ -3,10 +3,13 @@ from collections.abc import Collection
 from copy import deepcopy
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Iterable, TypeVar, Callable
+from pathlib import Path
+from typing import Iterable, TypeVar, Callable, Optional
 from typing_extensions import Self
 
 from characteristic import Characteristic
+import iv_calc
+import iv_calc_ods
 from nature import Nature
 from pkmn_stat import IVRanges, EVs, StatData, StatsData, GenStats, GenStatsNormalized, Stat
 from pkmn_stat_type import StatType, GenStatType
@@ -36,7 +39,7 @@ class SampleSpecificData:
 	nature: Nature
 	evs: EVs = None
 	characteristic: Characteristic = None
-	name: str = None
+	nickname: str = None
 
 
 class _EvenEVs:
@@ -57,7 +60,7 @@ class PokemonComparator:
 	def __init__(
 		self,
 		*samples: Sample,
-		ref_sample: Sample | int = None
+		ref_sample: Optional[Sample | int] = None
 	):
 		self._samples_list = [*samples]
 		# Save initial samples order for fast retrieval.
@@ -127,7 +130,7 @@ class PokemonComparator:
 					)
 					for stat_type in StatType
 				}),
-				sample_data.name
+				sample_data.nickname
 			)
 			for sample_data in samples_data
 		)
@@ -145,7 +148,7 @@ class PokemonComparator:
 					)
 					for stat_type in StatType
 				}),
-				ref_sample_data.name
+				ref_sample_data.nickname
 			)
 		else:
 			# int | None
@@ -211,8 +214,8 @@ class PokemonComparator:
 	def pretty_print_results(
 		self,
 		sorted_stats: dict[int, GenStats],
-		ref_stats: GenStats = None,
-		mid_values: bool = False,
+		ref_stats: Optional[GenStats] = None,
+		mid_values: bool = True,
 		precision: int = 2  # used when ref_stats is not None
 	) -> None:
 		if not sorted_stats:
@@ -221,7 +224,11 @@ class PokemonComparator:
 		# Prepare.
 		ROW_SEP = '-'
 		COL_SEP = ' | '
-		header_len = max(len(nature.name) for nature in Nature) + len(f" @ {len(sorted_stats) - 1}")
+		header_len = max(
+			len(sample.nature.name if sample.nickname is None else sample.nickname)
+			for sample in self._samples_list
+		) + len(f" @ {len(sorted_stats) - 1}")
+		index_len = len(str(len(sorted_stats) - 1))
 
 		col_lens = {}
 		for stat_type in GenStatType:
@@ -263,23 +270,27 @@ class PokemonComparator:
 
 		for initial_pos, stats in sorted_stats.items():
 			sample = self._samples_list[initial_pos]
-			header = f'{sample.nature.name} @ {initial_pos}'.rjust(header_len)
+			label = sample.nature.name if sample.nickname is None else sample.nickname
+			header = f'{label} @ {initial_pos:>{index_len}}'.rjust(header_len)
 			print(f'{header}{COL_SEP}', end='')
 			print(COL_SEP.join(
 				f'{IntRange.get_mid(stat_val) if mid_values else stat_val:{fmt}}'.rjust(col_lens[stat_type])
 				for stat_type, stat_val in stats.items()
 			))  # , sum(IntRange.get_mid(stat_val) for stat_val in stats.values()))
 
-		if ref_stats is not None:
+		if ref_stats is not None and self._ref_sample is not None:
 			print(" REFERENCE ".center(row_len, ROW_SEP))
-			sample = self._ref_sample
-			sample_nature: str | None = sample.nature
-			if sample_nature is None:
-				sample_nature_str = str(None)
+			sample: Sample = self._ref_sample
+			if sample.nickname is None:
+				sample_nature: str | None = sample.nature
+				if sample_nature is None:
+					label = str(None)
+				else:
+					sample_nature: Nature
+					label = sample_nature.name
 			else:
-				sample_nature: Nature
-				sample_nature_str = sample_nature.name
-			print(f'{sample_nature_str.rjust(header_len)}{COL_SEP}', end='')
+				label = sample.nickname
+			print(f'{label.rjust(header_len)}{COL_SEP}', end='')
 			print(COL_SEP.join(
 				f'{IntRange.get_mid(stat_val) if mid_values else stat_val:.0f}'.rjust(col_lens[stat_type])
 				for stat_type, stat_val in ref_stats.items()
@@ -304,6 +315,16 @@ def geomdur_atk_spd_strategy(samples_stats: dict[Sample, GenStatsNormalized]) ->
 		NumRange.get_mid(samples_stats[sample][GenStatType.ATK]),
 		NumRange.get_mid(samples_stats[sample][GenStatType.SPEED]),
 	)
+
+
+def geomduratkspd_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
+	return lambda sample: \
+		math.sqrt(
+			NumRange.get_mid(samples_stats[sample][GenStatType.DUR])
+			* NumRange.get_mid(samples_stats[sample][GenStatType.SPDUR])
+		) \
+		* NumRange.get_mid(samples_stats[sample][GenStatType.ATK]) \
+		* NumRange.get_mid(samples_stats[sample][GenStatType.SPEED])
 
 
 def dur_allatkspd_strategy(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strategy_T:
@@ -362,7 +383,7 @@ def allexceptdur_dur(samples_stats: dict[Sample, GenStatsNormalized]) -> _Strate
 	)
 
 
-def main():
+def manual_compare():
 	comp = PokemonComparator.from_same_species(
 		Pokemon.BRELOOM,
 
@@ -373,7 +394,7 @@ def main():
 			StatType.SPATK: IntRange(2, 2),
 			StatType.SPDEF: IntRange(30, 31),
 			StatType.SPEED: IntRange(13, 14)
-		}), nature=Nature.ADAMANT),
+		}), nature=Nature.ADAMANT, nickname="REFERENCE NICKNAME"),
 		SampleSpecificData(iv_ranges=IVRanges({
 			StatType.HP: IntRange(28, 29),
 			StatType.ATK: IntRange(31, 31),
@@ -436,8 +457,151 @@ def main():
 	comp.pretty_print_results(
 		comp_result,
 		ref_stats,
-		mid_values=True,
+		mid_values=False,
 		precision=2
+	)
+
+
+def process_compare_ods(
+	strategy: Strategy_T,
+	lvl: int,
+	path: Path | str,
+	sheet_name: Optional[str] = None,
+	skip: int = 0,
+	limit: Optional[int] = None,
+	minmax_filter: bool = True,
+	important_stat_types: Optional[dict[StatType, bool]] = None,
+	ref_sample: Optional[Sample | int] = None,
+	spec: Optional[Species_T] = None,
+	evs: Optional[dict[StatType, int]] = None,
+	mid_values: bool = True,
+	precision: int = 2
+) -> None:
+	"""Print comparison of samples from ODS file.
+
+	Check file format in `iv_calc_ods._parse_ods`.
+
+	============================================================================
+	`path`, `sheet_name`, `skip`, `limit`, `important_stat_types`
+	and `minmax_filter` passed only to `iv_calc_ods.process_ods_with_filter`.
+
+	If `sheet_name` wasn't specified - all sheets are processed as one.
+
+	`skip` defines how many first sample should be ignored.
+
+	`limit` defines how many samples have to extracted from the file.
+
+	`minmax_filter` defines if samples read from the file should be filtered.
+	Check `iv_calc_ods.minmax_filter_samples_iv_sets` for details.
+
+	`important_stat_types` defines stats by which filtered will be executed.
+	By default, (`None`) all stats are considered important.
+
+	============================================================================
+	`strategy`, `lvl`, `ref_sample`, `spec`, `evs`, `mid_values` and `precision`
+	are related to `PokemonComparator`.
+
+	`strategy` defines how samples have to be compared to each other.
+	I.e. it calculates sorting key for the sample.
+
+	`lvl` defines on which level should we calculate stats for comparison.
+
+	If `ref_sample` was provided (specific `Sample` or index of sample from
+	file), then values in the resulting table will be relative to values
+	of that sample. Otherwise, absolute values will be shown.
+
+	If `spec` was provided, all Pokémon from the file will be converted to
+	that Species, using calculated IVs.
+
+	By default, all EVs are considered zero, but one can provide EVs for some
+	`StatType`s in `evs`.
+
+	`mid_values` defines is we should print just mid-values in resulting table.
+
+	`precision` used when `ref_stats` is not None for float rounding.
+	"""
+	if important_stat_types is not None and not minmax_filter:
+		raise ValueError("Specifying `important_stat_types` makes sense only if `minmax_filter` is True.")
+
+	samples_iv_sets = iv_calc_ods.get_samples_iv_sets(path, sheet_name, skip, limit)
+	if minmax_filter:
+		samples_iv_sets, filtered_labels = iv_calc_ods.minmax_filter_samples_iv_sets(
+			samples_iv_sets,
+			important_stat_types
+		)
+		if filtered_labels:
+			iv_calc_ods.pprint_filtered_labels(filtered_labels)
+		print()
+	samples_iv_sets = list(samples_iv_sets)
+
+	if evs is None:
+		evs = dict()
+	used_evs = {
+		stat_type: evs.get(stat_type, 0)
+		for stat_type in StatType
+	}
+
+	comparator = PokemonComparator(
+		*(
+			Sample(
+				obs_sample["spec"] if spec is None else spec,
+				obs_sample["nature"],
+				obs_sample["characteristic"],
+				nickname=obs_sample["label"],
+				stats={
+					stat_type: {
+						"iv": IntRange(min(calced_iv_set.values), max(calced_iv_set.values)),
+						"ev": used_evs[stat_type]
+					}
+					for stat_type, calced_iv_set in calced_iv_sets.items()
+				}
+			)
+			for obs_sample, calced_iv_sets in samples_iv_sets
+		),
+		ref_sample=ref_sample
+	)
+
+	comp_result, ref_stats = comparator.get_comparison(strategy, lvl)
+
+	comparator.pretty_print_results(comp_result, ref_stats,	mid_values,	precision)
+	print()
+
+	print("Top sample IVs:")
+	_, top_sample_calced_iv_sets = samples_iv_sets[next(iter(comp_result))]
+	iv_calc.pprint_iv_sets(
+		top_sample_calced_iv_sets,
+		color_mode="mid",
+		important_stat_types=important_stat_types,
+		print_only_important=False
+	)
+
+
+def main():
+	...
+	# manual_compare()
+
+	process_compare_ods(
+		geomduratkspd_strategy,
+		lvl=80,
+		path='~/Documents/pkmn/samples/Aron.ods',
+		sheet_name='Initial',
+		skip=0,
+		limit=None,
+		minmax_filter=True,
+		important_stat_types={
+			StatType.HP: True,
+			StatType.ATK: True,
+			StatType.DEF: True,
+			StatType.SPDEF: True,
+			StatType.SPEED: True
+		},
+		ref_sample=0,
+		spec=Pokemon.MEGA_AGGRON,
+		evs={
+			StatType.HP: 252,
+			StatType.SPDEF: 252,
+			StatType.SPEED: 6
+		}
 	)
 
 
