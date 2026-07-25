@@ -706,7 +706,7 @@ def _test_filter() -> None:
 def pprint_sample_iv_sets(
     obs_sample: ObsSample,
     iv_sets: CalcedIVSets_T,
-    color_mode: iv_calc.ColorMode = "mid",
+    color_mode: iv_calc.ColorMode = "max",
     important_stat_types: Optional[Container[StatType]] = None,
     print_only_important: bool = True,
 ) -> None:
@@ -721,20 +721,17 @@ def pprint_sample_iv_sets(
     iv_calc.pprint_iv_sets(iv_sets, color_mode, important_stat_types, print_only_important)
 
 
-def process_ods_with_filter(minmax_filter: bool = True) -> None:
-    samples_iv_sets = get_samples_iv_sets(
-        path='~/Documents/pkmn/samples/Aron.ods',
-        sheet_name='Initial',
-        skip=5,
-        limit=5
-    )
-    important_stat_types = {
-        StatType.HP: True,
-        StatType.ATK: True,
-        StatType.DEF: True,
-        StatType.SPDEF: True,
-        StatType.SPEED: True
-    }
+def process_ods_with_filter(
+    path: Path | str,
+    sheet_name: Optional[str] = None,
+    skip: int = 0,
+    limit: Optional[int] = None,
+    important_stat_types: Optional[dict[StatType, bool]] = None,
+    minmax_filter: bool = True,
+    color_mode: iv_calc.ColorMode = "max",
+    print_only_important: bool = True,
+) -> None:
+    samples_iv_sets = get_samples_iv_sets(path, sheet_name, skip, limit)
 
     if minmax_filter:
         samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
@@ -745,13 +742,25 @@ def process_ods_with_filter(minmax_filter: bool = True) -> None:
         print()
 
     for obs_sample, iv_sets in samples_iv_sets:
-        pprint_sample_iv_sets(obs_sample, iv_sets, color_mode="max", important_stat_types=important_stat_types)
+        pprint_sample_iv_sets(obs_sample, iv_sets, color_mode, important_stat_types, print_only_important)
         print()
 
 
 def main():
     ...
-    process_ods_with_filter(minmax_filter=True)
+    process_ods_with_filter(
+        path='~/Documents/pkmn/samples/Aron.ods',
+        sheet_name='Initial',
+        skip=0,
+        limit=None,
+        important_stat_types={
+            StatType.HP: True,
+            StatType.ATK: True,
+            StatType.DEF: True,
+            StatType.SPDEF: True,
+            StatType.SPEED: True
+        }
+    )
 
     # _test_filter()
 

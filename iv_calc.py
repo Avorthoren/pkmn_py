@@ -165,7 +165,7 @@ type ColorMode = Literal["min", "mid", "max"]
 
 def pprint_iv_sets(
     iv_sets: CalcedIVSets_T,
-    color_mode: ColorMode = "mid",
+    color_mode: ColorMode = "max",
     important_stat_types: Optional[Container[StatType]] = None,
     print_only_important: bool = False,
 ) -> None:
