@@ -394,6 +394,15 @@ class Pokemon(Enum):
 		StatType.SPEED: 30
 	})
 
+	LAIRON = Species(name="Lairon", catch_rate=45, base_stats={
+		StatType.HP: 60,
+		StatType.ATK: 90,
+		StatType.DEF: 140,
+		StatType.SPATK: 50,
+		StatType.SPDEF: 50,
+		StatType.SPEED: 40
+	})
+
 	MEGA_AGGRON = Species(name="Mega Aggron", catch_rate=45, base_stats={
 		StatType.HP: 70,
 		StatType.ATK: 140,

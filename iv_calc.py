@@ -2,7 +2,7 @@ import dataclasses
 import operator
 from collections.abc import Container
 from functools import reduce
-from typing import Optional, Iterable, TypedDict, Literal
+from typing import Optional, Iterable, TypedDict, Literal, NotRequired
 
 from characteristic import Characteristic
 from nature import Nature
@@ -14,6 +14,7 @@ from utils import colored
 class ObsStat(TypedDict):
     lvl: int
     stats: StatsData | InputStatsData_T
+    spec: NotRequired[Species_T]
 
 
 @dataclasses.dataclass
@@ -35,12 +36,16 @@ type CalcedIVSets_T = dict[StatType, CalcedIVSet]
 
 
 def get_iv_sets(
-    spec: Species_T,
     obs_stats: Iterable[ObsStat],
+    spec: Optional[Species_T] = None,
     nature: Optional[Nature] = None,
     characteristic: Optional[Characteristic] = None,
     label: Optional[str] = None  # not used, just for `ObsSample` matching
 ) -> CalcedIVSets_T:
+    """
+    Calculate IV sets using observed stats values.
+    If `ObsStat` is missing `spec` key - `spec` argument will be used.
+    """
     iv_sets: CalcedIVSets_T = {
         stat_type: CalcedIVSet()
         for stat_type in StatType
@@ -50,7 +55,7 @@ def get_iv_sets(
 
     for i, obs_stats_sample in enumerate(obs_stats, start=1):
         sample = Sample(
-            spec=spec,
+            spec=obs_stats_sample.get("spec", spec),  # validated in `Sample`
             lvl=obs_stats_sample["lvl"],
             nature=nature,
             characteristic=characteristic,

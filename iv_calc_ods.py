@@ -17,7 +17,7 @@ BLOCK_HEIGHT = 8
 
 class ObsSample(TypedDict):
     label: Optional[str]
-    spec: Species_T
+    spec: Species_T  # defined by last entry in `obs_stats`, just for visuals
     obs_stats: Iterable[iv_calc.ObsStat]
     nature: Optional[Nature]
     characteristic: Optional[Characteristic]
@@ -170,11 +170,11 @@ def _parse_block(
 
     stat_order, first_level_col = _parse_header(sheet, block_row, header_col)
 
-    obs_stats = _parse_levels(sheet, block_row, first_level_col, stat_order)
+    obs_stats = _parse_levels(sheet, spec, block_row, first_level_col, stat_order)
 
     return {
         "label": label,
-        "spec": spec,
+        "spec": obs_stats[-1]["spec"],
         "nature": nature,
         "characteristic": characteristic,
         "obs_stats": obs_stats,
@@ -312,6 +312,7 @@ def _parse_header(
 
 def _parse_levels(
     sheet: ezodf.Sheet,
+    spec: Pokemon,
     block_row: int,
     first_level_col: int,
     stat_order: list[StatType],
@@ -326,23 +327,28 @@ def _parse_levels(
     col = first_level_col
     while col + 1 < sheet.ncols():
         lvl_cell = sheet[block_row, col]
+        if lvl_cell.span == (1, 1):
+            # Is it "evolution" column or block-end?
+            if _validate_evo_column(sheet, block_row, col):
+                # "Evolution" column: extract new `spec`:
+                spec, _ = _parse_required_meta_node(
+                    sheet, block_row, col,
+                    Pokemon, expected_label="POKEMON"
+                )
+                col += 1
+                continue
+            else:
+                break
+
+        if lvl_cell.span != (2, 1):
+            _fail(sheet, block_row, col, "level value must be in a cell merged across two columns")
         if _cell_is_empty(lvl_cell):
+            # Ignoring this block
             col += 2
             continue
 
-        left_empty = True
-        right_empty = True
-        for row in range(block_row, block_row + BLOCK_HEIGHT):
-            if not _cell_is_empty(sheet[row, col]):
-                left_empty = False
-            if not _cell_is_empty(sheet[row, col + 1]):
-                right_empty = False
-        if left_empty and right_empty:
-            break
-        if left_empty != right_empty:
-            _fail(sheet, block_row, col, "each level must occupy exactly two columns")
-
-        obs_stats.append(_parse_level(sheet, block_row, col, stat_order))
+        # It's a level-block
+        obs_stats.append(_parse_level(sheet, spec, block_row, col, stat_order))
         col += 2
 
     if not obs_stats:
@@ -351,8 +357,30 @@ def _parse_levels(
     return obs_stats
 
 
+def _validate_evo_column(
+    sheet: ezodf.Sheet,
+    block_row: int,
+    col: int,
+) -> bool:
+    """Check if this is evolution column (True) or block end (False)."""
+    evo_cell = sheet[block_row, col]
+    if not _cell_is_empty(evo_cell):
+        return True
+
+    for row in range(block_row + 1, block_row + BLOCK_HEIGHT):
+        if not _cell_is_empty(sheet[row, col]):
+            _fail(
+                sheet, row, col,
+                message="Unexpected column format:"
+                        " expected completely empty column (block end) or evoulution column, or level-block"
+            )
+
+    return False
+
+
 def _parse_level(
     sheet: ezodf.Sheet,
+    spec: Pokemon,
     block_row: int,
     first_col: int,
     stat_order: list[StatType],
@@ -361,9 +389,6 @@ def _parse_level(
     Parse a single level block.
     """
     lvl_cell = sheet[block_row, first_col]
-    if lvl_cell.span != (2, 1):
-        _fail(sheet, block_row, first_col, "level value must be in a cell merged across two columns")
-
     lvl = lvl_cell.value
     if not isinstance(lvl, int):
         _fail(sheet, block_row, first_col, "expected an integer level")
@@ -411,12 +436,15 @@ def _parse_level(
     return {
         "lvl": lvl,
         "stats": stats,
+        "spec": spec
     }
 
 
 def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSample]:
     """
     Parse an observation workbook.
+
+    Supports Pokémon evolutions. Check exception in Level block below.
 
     The workbook is an OpenDocument Spreadsheet (.ods) consisting of one or more
     worksheets. Every worksheet contains zero or more independent data blocks.
@@ -471,26 +499,34 @@ def _parse_ods(path: str | Path, sheet_name: Optional[str] = None) -> list[ObsSa
     TOTAL values are mandatory integers.
     EV values are integers; an empty EV cell is treated as 0.
 
+    Exception:
+    If level cell is a real single cell (not merged) - this column is treated
+    as "evolution column":
+    First row should contain string "POKEMON" (case-insensitive), then next row
+    should contain Pokémon name (`Pokemon` enum). Keep in mind, that we don't
+    check if such evolution is possible: any two species would work here,
+    we just change base stats.
+
     Example
     =======
 
-    +==========+================+=======+=======+=======+=======+=======+=======+=======+
-    |          | POKEMON        | LEVEL |       5       |               |       7       |
-    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
-    |          | PIKACHU        |       | TOTAL |  EV   | TOTAL |  EV   | TOTAL |  EV   |
-    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
-    |          | NATURE         | HP    |  35   |       |  37   |       |  39   |   4   |
-    + label    +----------------+-------+-------+-------+-------+-------+-------+-------+
-    | merged   | JOLLY          | ATK   |  20   |       |  23   |       |  26   |   0   |
-    | over     +----------------+-------+-------+-------+-------+-------+-------+-------+
-    | all      | CHARACTERISTIC | DEF   |  11   |       |  12   |       |  13   |       |
-    + rows     +----------------+-------+-------+-------+-------+-------+-------+-------+
-    |          | LIKES_TO_RUN   | SPATK |  14   |       |  16   |       |  18   |       |
-    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
-    |          | ignored        | SPDEF |  10   |       |  11   |       |  12   |       |
-    +          +----------------+-------+-------+-------+-------+-------+-------+-------+
-    |          | ignored        | SPEED |  18   |       |  21   |       |  24   |  20   |
-    +----------+----------------+-------+-------+-------+-------+-------+-------+-------+
+    +==========+================+=======+=======+=======+=======+=======+================+=======+=======+
+    |          | POKEMON        | LEVEL |       5       |               | POKEMON        |       7       |
+    +          +----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
+    |          | PIKACHU        |       | TOTAL |  EV   | TOTAL |  EV   | RAICHU         | TOTAL |  EV   |
+    +          +----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
+    |          | NATURE         | HP    |  35   |       |  37   |       | ignored        |  39   |   4   |
+    + label    +----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
+    | merged   | JOLLY          | ATK   |  20   |       |  23   |       | ignored        |  26   |   0   |
+    | over     +----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
+    | all      | CHARACTERISTIC | DEF   |  11   |       |  12   |       | ignored        |  13   |       |
+    + rows     +----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
+    |          | LIKES_TO_RUN   | SPATK |  14   |       |  16   |       | ignored        |  18   |       |
+    +          +----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
+    |          | ignored        | SPDEF |  10   |       |  11   |       | ignored        |  18   |       |
+    +          +----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
+    |          | ignored        | SPEED |  18   |       |  21   |       | ignored        |  24   |  20   |
+    +----------+----------------+-------+-------+-------+-------+-------+----------------+-------+-------+
 
     Args:
         path:
