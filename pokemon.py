@@ -41,7 +41,7 @@ IVSets_T = Dict[Nature, NatureIVSets_T]
 
 
 class Sample(Species):
-	MAX_IVS = 510
+	MAX_EVS = 510
 
 	def __init__(
 		self,
@@ -257,6 +257,15 @@ class Pokemon(Enum):
 		StatType.SPATK: 15,
 		StatType.SPDEF: 20,
 		StatType.SPEED: 80
+	})
+
+	GYARADOS = Species(name="Gyarados", catch_rate=255, base_stats={
+		StatType.HP: 95,
+		StatType.ATK: 125,
+		StatType.DEF: 79,
+		StatType.SPATK: 60,
+		StatType.SPDEF: 100,
+		StatType.SPEED: 81
 	})
 
 	RAYQUAZA = Species(name="Rayquaza", catch_rate=45, base_stats={

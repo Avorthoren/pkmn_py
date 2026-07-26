@@ -224,10 +224,14 @@ class PokemonComparator:
 		# Prepare.
 		ROW_SEP = '-'
 		COL_SEP = ' | '
+		top_header = 'Stat type'
 		header_len = max(
-			len(sample.nature.name if sample.nickname is None else sample.nickname)
-			for sample in self._samples_list
-		) + len(f" @ {len(sorted_stats) - 1}")
+			max(
+				len(sample.nature.name if sample.nickname is None else sample.nickname)
+				for sample in self._samples_list
+			) + len(f" @ {len(sorted_stats) - 1}"),
+			len(top_header)
+		)
 		index_len = len(str(len(sorted_stats) - 1))
 
 		col_lens = {}
@@ -258,7 +262,7 @@ class PokemonComparator:
 		fmt = '.0f' if ref_stats is None else f'.{precision}f'
 
 		# Print.
-		header = 'Stat type'.rjust(header_len)
+		header = top_header.rjust(header_len)
 		print(f'{header}{COL_SEP}', end='')
 		print(COL_SEP.join(
 			stat_type.name.rjust(col_lens[stat_type])
@@ -513,8 +517,9 @@ def process_compare_ods(
 	If `spec` was provided, all Pokémon from the file will be converted to
 	that Species, using calculated IVs.
 
-	By default, all EVs are considered zero, but one can provide EVs for some
-	`StatType`s in `evs`.
+	If `evs` is `None` - max amount is considered spred equally among
+	all `StatType`s. Othwerwise, values from provided dictionary is used,
+	with 0 as default value.
 
 	`mid_values` defines is we should print just mid-values in resulting table.
 
@@ -535,11 +540,15 @@ def process_compare_ods(
 	samples_iv_sets = list(samples_iv_sets)
 
 	if evs is None:
-		evs = dict()
-	used_evs = {
-		stat_type: evs.get(stat_type, 0)
-		for stat_type in StatType
-	}
+		used_evs = {
+			stat_type: Sample.MAX_EVS // len(StatType)
+			for stat_type in StatType
+		}
+	else:
+		used_evs = {
+			stat_type: evs.get(stat_type, 0)
+			for stat_type in StatType
+		}
 
 	comparator = PokemonComparator(
 		*(
@@ -583,7 +592,7 @@ def main():
 	process_compare_ods(
 		geomduratkspd_strategy,
 		lvl=80,
-		path='~/Documents/pkmn/samples/Aron.ods',
+		path='~/Documents/pkmn/samples/Magikarp.ods',
 		sheet_name='Initial',
 		skip=0,
 		limit=None,
@@ -596,12 +605,12 @@ def main():
 			StatType.SPEED: True
 		},
 		ref_sample=0,
-		spec=Pokemon.MEGA_AGGRON,
-		evs={
-			StatType.HP: 252,
-			StatType.SPDEF: 252,
-			StatType.SPEED: 6
-		}
+		spec=Pokemon.GYARADOS,
+		# evs={
+		# 	StatType.HP: 252,
+		# 	StatType.SPDEF: 252,
+		# 	StatType.SPEED: 6
+		# }
 	)
 
 
