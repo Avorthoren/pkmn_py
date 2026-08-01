@@ -592,7 +592,7 @@ def main():
 	process_compare_ods(
 		geomduratkspd_strategy,
 		lvl=80,
-		path='~/Documents/pkmn/samples/Magikarp.ods',
+		path='~/Documents/pkmn/samples/Magikarp tmp.ods',
 		sheet_name='Initial',
 		skip=0,
 		limit=None,

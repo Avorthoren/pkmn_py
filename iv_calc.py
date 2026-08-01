@@ -2,7 +2,7 @@ import dataclasses
 import operator
 from collections.abc import Container
 from functools import reduce
-from typing import Optional, Iterable, TypedDict, Literal, NotRequired
+from typing import Optional, Iterable, TypedDict, Literal, NotRequired, Generator
 
 from characteristic import Characteristic
 from nature import Nature
@@ -165,6 +165,25 @@ def _mid_iv_ranker(iv_set: set[int]) -> float:
     return sum(iv_set) / len(iv_set)
 
 
+def _iv_set_str_it(iv_set: set[int]) -> Generator[str, None, None]:
+    if not iv_set:
+        return
+
+    it = iter(sorted(iv_set))
+    left = right = next(it)
+    for v in it:
+        if v == right + 1:
+            right = v
+            continue
+        yield f"{left}-{right}" if left < right else str(left)
+        left = right = v
+    yield f"{left}-{right}" if left < right else str(left)
+
+
+def _get_iv_set_str(iv_set: set[int]) -> str:
+    return f"[{', '.join(_iv_set_str_it(iv_set))}]"
+
+
 type ColorMode = Literal["min", "mid", "max"]
 
 
@@ -188,7 +207,11 @@ def pprint_iv_sets(
     # Important stats will be colored according to their IVs.
 
     max_stat_type_len = max(len(stat_type.name) for stat_type in StatType)
-    max_iv_set_len = max(len(str(calced_iv_set.values)) for calced_iv_set in iv_sets.values())
+    str_iv_sets = {
+        stat_type: _get_iv_set_str(calced_iv_set.values)
+        for stat_type, calced_iv_set in iv_sets.items()
+    }
+    max_iv_set_len = max(len(iv_set_str) for iv_set_str in str_iv_sets.values())
 
     for stat_type, calced_iv_set in iv_sets.items():
         if stat_type not in important_stat_types and print_only_important:
@@ -218,7 +241,7 @@ def pprint_iv_sets(
             color = "light_cyan"         # 4
 
         print(colored(
-            f"{stat_type:{max_stat_type_len}}: {str(sorted(iv_set)):{max_iv_set_len}},"
+            f"{stat_type:{max_stat_type_len}}: {str_iv_sets[stat_type]:{max_iv_set_len}},"
             f" update_lvl={str(update_lvl):4}, {delta_ev=}",
             color=color,
             on_color=on_color

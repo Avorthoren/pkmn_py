@@ -791,9 +791,10 @@ def process_ods_with_filter(
 
 def main():
     ...
+    # note: total MAGIKARP: 56
     process_ods_with_filter(
         path='~/Documents/pkmn/samples/Magikarp.ods',
-        sheet_name='Initial',
+        # sheet_name='Female Rattled Jolly',
         skip=0,
         limit=None,
         important_stat_types={
