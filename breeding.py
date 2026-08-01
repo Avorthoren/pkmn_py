@@ -139,11 +139,16 @@ def _get_percent_precision(x: float) -> int:
     return max(1, 2 - math.floor(p))
 
 
+def _get_percent_str(x: float) -> str:
+    precision = _get_percent_precision(x)
+    return f"{100 * x:.{precision}f}%"
+
+
 def pprint_perfect_child_ivs_spread(p1: float, p2: float, spread: dict[int, float]) -> None:
-    print(f"{p1 * 100:.{_get_percent_precision(p1)}f}% for having more perfect IVs than worse parent")
-    print(f"{p2 * 100:.{_get_percent_precision(p2)}f}% for having more perfect IVs than best parent")
+    print(f"{_get_percent_str(p1)} for having more perfect IVs than worse parent")
+    print(f"{_get_percent_str(p2)} for having more perfect IVs than best parent")
     for i, p in spread.items():
-        print(f"{p * 100:.{_get_percent_precision(p)}f}% for having {i} perfect IVs")
+        print(f"{_get_percent_str(p)} for having {i} perfect IVs")
 
 
 def main():
@@ -152,7 +157,7 @@ def main():
     pprint_perfect_child_ivs_spread(p1, p2, spread)
 
     # for x in (1, 0.11, 0.1, 0.011, 0.01):
-    #     print(x, _get_percent_precision(x), f"{100 * x:.{_get_percent_precision(x)}f}%}}")
+    #     print(x, _get_percent_precision(x), _get_percent_str(x))
 
 
 if __name__ == "__main__":
