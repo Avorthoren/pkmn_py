@@ -569,6 +569,7 @@ def get_samples_iv_sets(
     sheet_name: Optional[str] = None,
     skip: int = 0,
     limit: Optional[int] = None,
+    allowed_labels: Optional[set[str]] = None,
 ) -> Generator[tuple[ObsSample, iv_calc.CalcedIVSets_T]]:
     """
     Parse an observation workbook.
@@ -582,6 +583,9 @@ def get_samples_iv_sets(
             Number of first records to skip
         limit:
             Max number of records to return
+        allowed_labels:
+            Additional filter on top of `skip` + `limit` pair, and applied
+            after it.
 
     Returns:
         Parsed observation samples from all sheets with their iv sets
@@ -600,6 +604,8 @@ def get_samples_iv_sets(
 
     for i in range(skip, min(skip + limit, len(parsed))):
         obs_sample = parsed[i]
+        if allowed_labels is not None and obs_sample["label"] not in allowed_labels:
+            continue
         try:
             yield obs_sample, iv_calc.get_iv_sets(**obs_sample)
         except Exception as e:
@@ -771,12 +777,13 @@ def process_ods_with_filter(
     sheet_name: Optional[str] = None,
     skip: int = 0,
     limit: Optional[int] = None,
+    allowed_labels: Optional[set[str]] = None,
     important_stat_types: Optional[dict[StatType, bool]] = None,
     minmax_filter: bool = True,
     color_mode: iv_calc.ColorMode = "max",
     print_only_important: bool = True,
 ) -> None:
-    samples_iv_sets = get_samples_iv_sets(path, sheet_name, skip, limit)
+    samples_iv_sets = get_samples_iv_sets(path, sheet_name, skip, limit, allowed_labels)
 
     if minmax_filter:
         samples_iv_sets, filtered_labels = minmax_filter_samples_iv_sets(samples_iv_sets, important_stat_types)
@@ -791,19 +798,21 @@ def process_ods_with_filter(
 
 def main():
     ...
-    # note: total MAGIKARP: 56
+    # note: total MAGIKARP: 102
     process_ods_with_filter(
         path='~/Documents/pkmn/samples/Magikarp.ods',
-        # sheet_name='Female',
-        # skip=1,
-        # limit=5,
+        sheet_name='Male',
+        skip=5,
+        limit=4,
+        allowed_labels=None,
         important_stat_types={
             StatType.HP: True,
             StatType.ATK: True,
             StatType.DEF: True,
             StatType.SPDEF: True,
             StatType.SPEED: True
-        }
+        },
+        minmax_filter=False
     )
 
     # _test_filter()
