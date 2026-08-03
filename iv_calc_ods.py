@@ -798,13 +798,13 @@ def process_ods_with_filter(
 
 def main():
     ...
-    # note: total MAGIKARP: 102
+    # note: total MAGIKARP: 173
     process_ods_with_filter(
         path='~/Documents/pkmn/samples/Magikarp.ods',
         sheet_name='Male',
-        skip=5,
-        limit=4,
-        allowed_labels=None,
+        skip=3,
+        # limit=5,
+        # allowed_labels={'MK172', 'MK145', 'MK151', 'MK160', 'MK162'},
         important_stat_types={
             StatType.HP: True,
             StatType.ATK: True,

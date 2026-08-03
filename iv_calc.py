@@ -2,7 +2,7 @@ import dataclasses
 import operator
 from collections.abc import Container
 from functools import reduce
-from typing import Optional, Iterable, TypedDict, Literal, NotRequired, Generator
+from typing import Optional, Iterable, TypedDict, Literal, NotRequired, Generator, Sequence
 
 from characteristic import Characteristic
 from nature import Nature
@@ -190,7 +190,7 @@ type ColorMode = Literal["min", "mid", "max"]
 def pprint_iv_sets(
     iv_sets: CalcedIVSets_T,
     color_mode: ColorMode = "max",
-    important_stat_types: Optional[Container[StatType]] = None,
+    important_stat_types: Optional[Sequence[StatType]] = None,
     print_only_important: bool = False,
 ) -> None:
     if color_mode == "min":
@@ -203,17 +203,18 @@ def pprint_iv_sets(
         raise RuntimeError(f"Unsupported {color_mode=!r}")
 
     if important_stat_types is None:
-        important_stat_types = set(StatType)
+        important_stat_types = tuple(StatType)
     # Important stats will be colored according to their IVs.
 
-    max_stat_type_len = max(len(stat_type.name) for stat_type in StatType)
+    max_stat_type_len = max(len(stat_type.name) for stat_type in important_stat_types)
     str_iv_sets = {
-        stat_type: _get_iv_set_str(calced_iv_set.values)
-        for stat_type, calced_iv_set in iv_sets.items()
+        stat_type: _get_iv_set_str(iv_sets[stat_type].values)
+        for stat_type in important_stat_types
     }
     max_iv_set_len = max(len(iv_set_str) for iv_set_str in str_iv_sets.values())
 
-    for stat_type, calced_iv_set in iv_sets.items():
+    for stat_type in important_stat_types:
+        calced_iv_set = iv_sets[stat_type]
         if stat_type not in important_stat_types and print_only_important:
             continue
 

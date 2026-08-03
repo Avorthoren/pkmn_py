@@ -205,9 +205,9 @@ def analyze_child_ivs(
 def main():
     ...
     analyze_child_ivs(
-        mother_perfect_ivs=3,
+        mother_perfect_ivs=4,
         father_perfect_ivs=5,
-        common_perfect_ivs=3,
+        common_perfect_ivs=4,
         ignored_stats=1,
         girls_rate=0.5,
     )
